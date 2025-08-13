@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC variables must be passed as build args for client-side embedding
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
     ports:
       - "3000:3000"
     environment:
@@ -21,6 +24,9 @@ services:
       
       # Google Maps API - Set these in your environment
       - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+      
+      # Cloudflare Tunnel / Proxy support - Set to true when behind proxy
+      - TRUST_HOST=${TRUST_HOST:-false}
       
       # Production optimizations
       - NODE_ENV=production

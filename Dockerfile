@@ -20,9 +20,14 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
 
+# Accept build arguments for client-side environment variables
+ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Pass through NEXT_PUBLIC variables for client-side embedding
+ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 # Set environment to force Prisma to use OpenSSL 3.x
 ENV PRISMA_CLI_BINARY_TARGETS="linux-musl-openssl-3.0.x"

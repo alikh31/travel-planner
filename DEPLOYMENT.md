@@ -37,8 +37,11 @@ docker pull ghcr.io/alikh31/travel-planner:latest
 git clone https://github.com/alikh31/travel-planner.git
 cd travel-planner
 
-# Build the Docker image
-docker build -t travel-planner .
+# Build the Docker image with Google Maps API key
+# IMPORTANT: NEXT_PUBLIC_* variables must be provided at build time
+docker build \
+  --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="your-google-maps-api-key" \
+  -t travel-planner .
 ```
 
 ## 🚀 Deployment Options
@@ -68,12 +71,14 @@ docker run -d \
 1. Create a `.env` file with your configuration:
 
 ```bash
-# Copy the example environment file
-cp .env.example .env
+# Create environment file from example (if available)
+cp .env.example .env 2>/dev/null || touch .env
 
 # Edit the environment file
 nano .env
 ```
+
+**IMPORTANT**: NEXT_PUBLIC_* variables must be set before building the image as they are embedded in the client-side JavaScript at build time.
 
 2. Set your environment variables in `.env`:
 
