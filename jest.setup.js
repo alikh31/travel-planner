@@ -31,7 +31,8 @@ beforeAll(() => {
       typeof message === 'string' && (
         message.includes('React Hook') ||
         message.includes('componentWillReceiveProps') ||
-        message.includes('componentWillMount')
+        message.includes('componentWillMount') ||
+        message.includes('Invalid JSON in localStorage')
       )
     ) {
       return // Suppress these expected test warnings
@@ -181,15 +182,18 @@ jest.mock('next/navigation', () => ({
 }))
 
 // Mock localStorage with proper default values
+const localStorageMock = {
+  store: new Map(),
+  getItem: jest.fn((key) => localStorageMock.store.get(key) || null),
+  setItem: jest.fn((key, value) => localStorageMock.store.set(key, value)),
+  removeItem: jest.fn((key) => localStorageMock.store.delete(key)),
+  clear: jest.fn(() => localStorageMock.store.clear()),
+  get length() { return localStorageMock.store.size },
+  key: jest.fn((index) => Array.from(localStorageMock.store.keys())[index] || null),
+}
+
 Object.defineProperty(window, 'localStorage', {
-  value: {
-    getItem: jest.fn(() => null),
-    setItem: jest.fn(),
-    removeItem: jest.fn(),
-    clear: jest.fn(),
-    length: 0,
-    key: jest.fn(() => null),
-  },
+  value: localStorageMock,
   writable: true,
 })
 

@@ -68,8 +68,13 @@ export default function AccommodationPlanner({
   useEffect(() => {
     // Load expansion state from localStorage
     const savedExpanded = localStorage.getItem(storageKey)
-    if (savedExpanded !== null) {
-      setIsExpanded(JSON.parse(savedExpanded))
+    if (savedExpanded !== null && savedExpanded !== undefined) {
+      try {
+        setIsExpanded(JSON.parse(savedExpanded))
+      } catch (error) {
+        // Invalid JSON, ignore and use default
+        console.warn('Invalid JSON in localStorage for key:', storageKey)
+      }
     }
     
     // Load accommodations for this itinerary
