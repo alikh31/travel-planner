@@ -10,6 +10,14 @@ export OPENSSL_CONF=/dev/null
 export PRISMA_CLI_BINARY_TARGETS="linux-musl-openssl-3.0.x"
 export PRISMA_CLIENT_ENGINE_TYPE="binary"
 
+# Check if running behind a proxy (Cloudflare Tunnel, etc.)
+if [ "$TRUST_HOST" = "true" ]; then
+    echo "🌐 Running behind proxy - trusting host headers"
+    echo "📝 NEXTAUTH_URL: $NEXTAUTH_URL"
+else
+    echo "🌐 Running in direct mode (no proxy)"
+fi
+
 # Ensure DATABASE_URL is properly set for production
 if [ -z "$DATABASE_URL" ]; then
     export DATABASE_URL="file:/app/data/prod.db"
@@ -27,23 +35,22 @@ if [ ! -d "/app/data" ]; then
     chown nextjs:nodejs /app/data
 fi
 
-# Generate Prisma client if needed
-echo "🔧 Generating Prisma client..."
-npx prisma generate || echo "⚠️ Prisma generate failed, continuing..."
+# Skip Prisma client generation in entrypoint - it should be pre-built
+echo "🔧 Prisma client already generated during build"
 
 # Check if database exists, if not initialize it
 if [ ! -f "/app/data/prod.db" ]; then
     echo "🗄️ Initializing database..."
     
-    # Run Prisma migrations to create the database
-    npx prisma db push --accept-data-loss --skip-generate
+    # Run Prisma migrations to create the database with explicit DATABASE_URL
+    DATABASE_URL="file:/app/data/prod.db" npx prisma db push --accept-data-loss --skip-generate
     
     echo "✅ Database initialized successfully"
 else
     echo "📊 Database already exists, checking for updates..."
     
-    # Apply any pending migrations
-    npx prisma db push --skip-generate
+    # Apply any pending migrations with explicit DATABASE_URL
+    DATABASE_URL="file:/app/data/prod.db" npx prisma db push --skip-generate
     
     echo "✅ Database updated successfully"
 fi

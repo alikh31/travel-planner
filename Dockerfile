@@ -68,6 +68,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 
+# Ensure Prisma directories have correct permissions
+RUN chown -R nextjs:nodejs /app/node_modules/.prisma /app/node_modules/@prisma
+
 # Copy entrypoint script
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/docker-entrypoint.sh ./docker-entrypoint.sh
 
