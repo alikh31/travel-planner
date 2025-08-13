@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Calendar, MapPin, ThumbsUp, ThumbsDown, MessageSquare, X, Edit3, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import LocationSearch from '@/components/LocationSearch'
@@ -639,7 +640,7 @@ export default function ItineraryDetail() {
             
             // Find existing vote from current user
             const existingVoteIndex = activity.votes.findIndex(v => v.userId === session.user.id)
-            let newVotes = [...activity.votes]
+            const newVotes = [...activity.votes]
             
             if (existingVoteIndex >= 0) {
               // Update existing vote
@@ -1015,12 +1016,12 @@ export default function ItineraryDetail() {
           <div className="text-red-500 text-6xl mb-4">🚫</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
           <p className="text-gray-600 mb-4">You do not have permission to view this itinerary.</p>
-          <a 
+          <Link 
             href="/" 
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Return Home
-          </a>
+          </Link>
         </div>
       </div>
     )

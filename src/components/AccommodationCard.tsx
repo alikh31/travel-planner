@@ -160,7 +160,7 @@ export default function AccommodationCard({
             {/* Notes */}
             {accommodation.notes && (
               <p className="text-sm text-gray-600 italic">
-                "{accommodation.notes}"
+                &ldquo;{accommodation.notes}&rdquo;
               </p>
             )}
           </div>

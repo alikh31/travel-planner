@@ -33,9 +33,11 @@ jobs:
 
       - name: Run linter
         run: npm run lint
+        env:
+          CI: true
 
       - name: Run tests
-        run: npm test -- --passWithNoTests
+        run: npm test -- --passWithNoTests --coverage=false
         env:
           CI: true
 

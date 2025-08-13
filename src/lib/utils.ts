@@ -19,6 +19,7 @@ export const formatDateSafely = (date: string | Date, formatStr: string) => {
   }
   
   // Use proper formatting on client
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { format } = require('date-fns')
   return format(new Date(date), formatStr)
 }
