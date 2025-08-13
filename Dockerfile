@@ -4,7 +4,7 @@ FROM node:18-alpine AS base
 # Install dependencies only when needed
 FROM base AS deps
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl openssl-dev
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
@@ -24,8 +24,12 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Generate Prisma client
-RUN npx prisma generate
+# Set environment to force Prisma to use OpenSSL 3.x
+ENV PRISMA_CLI_BINARY_TARGETS="linux-musl-openssl-3.0.x"
+ENV PRISMA_CLIENT_ENGINE_TYPE="binary"
+
+# Generate Prisma client with correct target
+RUN npx prisma generate --generator client
 
 # Build the application
 RUN npm run build
@@ -33,6 +37,9 @@ RUN npm run build
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
+
+# Install OpenSSL and compatibility libs for Prisma
+RUN apk add --no-cache openssl openssl-dev ca-certificates
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -76,6 +83,10 @@ ENV HOSTNAME="0.0.0.0"
 
 # Default database path for container
 ENV DATABASE_URL="file:/app/data/prod.db"
+
+# Set Prisma environment for runtime
+ENV PRISMA_CLI_BINARY_TARGETS="linux-musl-openssl-3.0.x"
+ENV PRISMA_CLIENT_ENGINE_TYPE="binary"
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "server.js"]
