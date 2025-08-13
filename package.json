@@ -10,6 +10,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "type-check": "tsc --noEmit --skipLibCheck",
     "prepare": "if [ \"$NODE_ENV\" != \"production\" ] && [ \"$CI\" != \"true\" ]; then husky; fi || true"
   },
   "dependencies": {
