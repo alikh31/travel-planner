@@ -5,9 +5,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # NEXT_PUBLIC variables must be passed as build args for client-side embedding
-        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
     ports:
       - "3000:3000"
     environment:

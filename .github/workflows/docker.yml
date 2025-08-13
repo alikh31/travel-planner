@@ -99,8 +99,6 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             NEXT_TELEMETRY_DISABLED=1
-            # Placeholder API key for CI builds
-            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=placeholder-for-ci-build
 
       - name: Generate deployment summary
         run: |
