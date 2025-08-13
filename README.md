@@ -20,6 +20,8 @@ A collaborative travel itinerary planning application built with Next.js, allowi
 - **Styling**: Tailwind CSS
 - **Icons**: Lucide React
 - **Date Handling**: date-fns
+- **Maps Integration**: Google Maps API (Places, Directions, Distance Matrix)
+- **Deployment**: Docker with GitHub Actions CI/CD
 
 ## Getting Started
 
@@ -84,6 +86,41 @@ A collaborative travel itinerary planning application built with Next.js, allowi
 
 7. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
+
+## 🐳 Docker Deployment
+
+For production deployment or if you prefer containerized development:
+
+### Quick Start with Docker
+
+```bash
+# Pull the pre-built image
+docker pull ghcr.io/alikh31/travel-planner:latest
+
+# Run with your environment variables
+docker run -p 3000:3000 \
+  -e NEXTAUTH_SECRET="your-secret-key" \
+  -e GOOGLE_CLIENT_ID="your-client-id" \
+  -e GOOGLE_CLIENT_SECRET="your-client-secret" \
+  -e NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="your-maps-key" \
+  -v ./data:/app/data \
+  ghcr.io/alikh31/travel-planner:latest
+```
+
+### Using Docker Compose
+
+```bash
+# Clone and configure
+git clone https://github.com/alikh31/travel-planner.git
+cd travel-planner
+cp .env.example .env
+# Edit .env with your credentials
+
+# Deploy
+docker-compose up -d
+```
+
+📖 **For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
 
 ## Usage
 

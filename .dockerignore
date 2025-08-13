@@ -1,0 +1,69 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next
+.swc
+out
+
+# Environment files
+.env*
+!.env.example
+
+# Testing
+coverage
+.nyc_output
+jest.config.js
+jest.setup.js
+**/__tests__/**
+**/*.test.*
+**/*.spec.*
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Build outputs
+dist
+build
+
+# Temporary files
+tmp
+temp
+
+# Documentation (keep essential docs)
+README.md
+!README.md
+
+# Database (exclude dev database)
+prisma/dev.db*
+
+# Other
+.vercel
