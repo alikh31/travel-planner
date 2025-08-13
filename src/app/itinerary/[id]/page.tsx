@@ -343,7 +343,7 @@ export default function ItineraryDetail() {
   // New Accommodation State
   const [newAccommodation, setNewAccommodation] = useState({
     name: '',
-    type: 'hotel',
+    type: 'hotel' as 'hotel' | 'hostel' | 'apartment' | 'bnb' | 'resort' | 'other',
     location: '',
     locationPlaceId: '',
     locationLat: null as number | null,
@@ -683,9 +683,9 @@ export default function ItineraryDetail() {
       
       return {
         ...prevItinerary,
-        days: prevItinerary.days.map(day => ({
+        days: prevItinerary.days.map((day: any) => ({
           ...day,
-          activities: day.activities.map(activity => {
+          activities: day.activities.map((activity: any) => {
             if (activity.id !== activityId) return activity
             
             return {
@@ -730,14 +730,14 @@ export default function ItineraryDetail() {
     setIsDeletingActivity(true)
 
     // Optimistic update - remove activity immediately
-    setItinerary(prevItinerary => {
+    setItinerary((prevItinerary: any) => {
       if (!prevItinerary) return prevItinerary
       
       return {
         ...prevItinerary,
-        days: prevItinerary.days.map(day => ({
+        days: prevItinerary.days.map((day: any) => ({
           ...day,
-          activities: day.activities.filter(activity => activity.id !== activityId)
+          activities: day.activities.filter((activity: any) => activity.id !== activityId)
         }))
       }
     })
@@ -1116,7 +1116,7 @@ export default function ItineraryDetail() {
       {showMap && selectedDayData && (
         <ActivitiesMap
           activities={selectedDayData.activities}
-          selectedDay={selectedDay}
+          selectedDay={selectedDay || undefined}
           onClose={() => setShowMap(false)}
           isModal={true}
         />
