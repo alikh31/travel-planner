@@ -1,11 +1,10 @@
 import { POST, DELETE, PUT } from './route'
 import { getServerSession } from 'next-auth'
-import { prisma } from '@/lib/prisma'
 import { NextRequest } from 'next/server'
 
 // Mock dependencies
 jest.mock('next-auth')
-jest.mock('@/lib/prisma', () => ({
+jest.mock('../../../../../lib/prisma', () => ({
   prisma: {
     itinerary: {
       findFirst: jest.fn(),
@@ -22,6 +21,8 @@ jest.mock('@/lib/prisma', () => ({
   },
 }))
 
+// Import after mock
+const { prisma } = require('../../../../../lib/prisma')
 const mockGetServerSession = getServerSession as jest.MockedFunction<typeof getServerSession>
 const mockPrismaItinerary = prisma.itinerary as any
 const mockPrismaUser = prisma.user as any

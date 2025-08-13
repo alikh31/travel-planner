@@ -1,8 +1,13 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import ActivitiesMap from './ActivitiesMap'
-import { loadGoogleMaps } from '@/lib/googleMaps'
 
-// Mock Google Maps
+// Mock Google Maps module
+jest.mock('../lib/googleMaps', () => ({
+  loadGoogleMaps: jest.fn(),
+  getPlacePhoto: jest.fn().mockResolvedValue('mock-photo-url'),
+}))
+
+const { loadGoogleMaps } = require('../lib/googleMaps')
 const mockLoadGoogleMaps = loadGoogleMaps as jest.MockedFunction<typeof loadGoogleMaps>
 
 describe('ActivitiesMap', () => {

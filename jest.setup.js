@@ -109,3 +109,69 @@ Object.defineProperty(window, 'removeEventListener', {
   value: jest.fn(),
   writable: true,
 })
+
+// Set up test environment variables
+process.env.NEXTAUTH_SECRET = 'test-secret'
+process.env.NEXTAUTH_URL = 'http://localhost:3000'
+process.env.GOOGLE_CLIENT_ID = 'test-google-client-id'
+process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret'
+process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = 'test-maps-api-key'
+
+// Mock Web APIs for Next.js API routes with simple mocks
+if (typeof global.Request === 'undefined') {
+  global.Request = class Request {
+    constructor(url, options = {}) {
+      this.url = url
+      this.method = options.method || 'GET'
+      this.headers = new Map(Object.entries(options.headers || {}))
+      this._body = options.body
+    }
+    
+    async json() {
+      return JSON.parse(this._body || '{}')
+    }
+  }
+}
+
+if (typeof global.Response === 'undefined') {
+  global.Response = class Response {
+    constructor(body, options = {}) {
+      this._body = body
+      this.status = options.status || 200
+      this.statusText = options.statusText || 'OK'
+      this.headers = new Map(Object.entries(options.headers || {}))
+    }
+    
+    async json() {
+      return JSON.parse(this._body || '{}')
+    }
+    
+    static json(data, options) {
+      return new Response(JSON.stringify(data), {
+        ...options,
+        headers: { 'content-type': 'application/json', ...options?.headers }
+      })
+    }
+  }
+}
+
+if (typeof global.Headers === 'undefined') {
+  global.Headers = class Headers extends Map {
+    constructor(init) {
+      super()
+      if (init) {
+        for (const [key, value] of Object.entries(init)) {
+          this.set(key.toLowerCase(), value)
+        }
+      }
+    }
+    
+    get(name) {
+      return super.get(name.toLowerCase())
+    }
+    
+    set(name, value) {
+      return super.set(name.toLowerCase(), value)
+    }
+  }
+}

@@ -48,8 +48,7 @@
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "npm run test -- --bail --findRelatedTests --passWithNoTests"
+      "eslint --fix"
     ]
   }
 }

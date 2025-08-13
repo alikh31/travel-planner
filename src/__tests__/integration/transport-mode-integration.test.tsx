@@ -1,10 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import TimeGap from '@/components/TimeGap'
-import ActivitiesMap from '@/components/ActivitiesMap'
-import { loadGoogleMaps } from '@/lib/googleMaps'
+import TimeGap from '../../components/TimeGap'
+import ActivitiesMap from '../../components/ActivitiesMap'
 
-// Mock Google Maps
+// Mock Google Maps module
+jest.mock('../../lib/googleMaps', () => ({
+  loadGoogleMaps: jest.fn(),
+  getPlacePhoto: jest.fn().mockResolvedValue('mock-photo-url'),
+}))
+
+const { loadGoogleMaps } = require('../../lib/googleMaps')
 const mockLoadGoogleMaps = loadGoogleMaps as jest.MockedFunction<typeof loadGoogleMaps>
 
 describe('Transport Mode Integration', () => {

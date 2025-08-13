@@ -234,7 +234,7 @@ const ActivityItem = memo(({
                 className="flex items-center space-x-1 text-gray-500 hover:text-blue-600 transition-colors"
               >
                 <MessageSquare className="h-4 w-4" />
-                <span>{activity.comments.length}</span>
+                <span>{activity.comments?.length || 0}</span>
               </button>
             </div>
             
