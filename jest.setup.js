@@ -1,5 +1,51 @@
 import '@testing-library/jest-dom'
 
+// Suppress console errors and warnings during tests to reduce noise
+const originalError = console.error
+const originalWarn = console.warn
+
+beforeAll(() => {
+  // Suppress common expected test errors to reduce noise
+  console.error = (...args) => {
+    const message = args[0]
+    if (
+      typeof message === 'string' && (
+        message.includes('Error creating activity:') ||
+        message.includes('Error adding member:') ||
+        message.includes('Error fetching transit directions:') ||
+        message.includes('Error calculating travel time:') ||
+        message.includes('Error initializing map:') ||
+        message.includes('An update to') && message.includes('inside a test was not wrapped in act') ||
+        message.includes('Database error') ||
+        message.includes('Maps API error')
+      )
+    ) {
+      return // Suppress these expected test errors
+    }
+    originalError.apply(console, args)
+  }
+
+  console.warn = (...args) => {
+    const message = args[0]
+    if (
+      typeof message === 'string' && (
+        message.includes('React Hook') ||
+        message.includes('componentWillReceiveProps') ||
+        message.includes('componentWillMount')
+      )
+    ) {
+      return // Suppress these expected test warnings
+    }
+    originalWarn.apply(console, args)
+  }
+})
+
+afterAll(() => {
+  // Restore original console methods
+  console.error = originalError
+  console.warn = originalWarn
+})
+
 // Mock Google Maps
 const mockGoogleMaps = {
   Map: jest.fn(() => ({
