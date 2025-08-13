@@ -324,6 +324,7 @@ export default function ItineraryDetail() {
   const [showMap, setShowMap] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isDeletingActivity, setIsDeletingActivity] = useState(false)
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   
   // New Activity Form State
   const [newActivity, setNewActivity] = useState({
@@ -677,7 +678,7 @@ export default function ItineraryDetail() {
       createdAt: new Date().toISOString()
     }
 
-    setItinerary(prevItinerary => {
+    setItinerary((prevItinerary: any) => {
       if (!prevItinerary) return prevItinerary
       
       return {
