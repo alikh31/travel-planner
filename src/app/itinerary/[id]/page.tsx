@@ -4,10 +4,8 @@ import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Calendar, MapPin, ThumbsUp, ThumbsDown, MessageSquare, X, Edit3, Trash2 } from 'lucide-react'
+import { Calendar, MapPin, ThumbsUp, ThumbsDown, MessageSquare, Edit3, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
-import LocationSearch from '@/components/LocationSearch'
-import ClientOnly from '@/components/ClientOnly'
 import { generateTempId } from '@/lib/utils'
 import TimeGap from '@/components/TimeGap'
 import AccommodationPlanner from '@/components/AccommodationPlanner'
@@ -15,6 +13,9 @@ import ActivitiesMap from '@/components/ActivitiesMap'
 import TripHeader from '@/components/TripHeader'
 import DaysAndActivities from '@/components/DaysAndActivities'
 import MapSection from '@/components/MapSection'
+import AddActivityModal from '@/components/AddActivityModal'
+import AddMemberModal from '@/components/AddMemberModal'
+import AddAccommodationModal from '@/components/AddAccommodationModal'
 import { getPlacePhoto } from '@/lib/googleMaps'
 
 // Helper functions
@@ -317,13 +318,12 @@ export default function ItineraryDetail() {
   const [showComments, setShowComments] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
-  const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
-  const [isUpdatingActivity, setIsUpdatingActivity] = useState(false)
   const [newMemberEmail, setNewMemberEmail] = useState('')
   const [isAddingMember, setIsAddingMember] = useState(false)
   const [showAddAccommodation, setShowAddAccommodation] = useState(false)
   const [showMap, setShowMap] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isDeletingActivity, setIsDeletingActivity] = useState(false)
   
   // New Activity Form State
   const [newActivity, setNewActivity] = useState({
@@ -429,53 +429,6 @@ export default function ItineraryDetail() {
     }
   }, [accommodations, itinerary?.members?.length])
 
-  // Function to fetch place photo from Google Places API with enhanced error handling
-  const fetchPlacePhoto = useCallback(async (placeId: string): Promise<string | null> => {
-    if (!placeId) return null
-    
-    try {
-      const { loadGoogleMaps } = await import('../../../lib/googleMaps')
-      const google = await loadGoogleMaps()
-      
-      if (!google) {
-        console.warn('Google Maps failed to load, photo fetching unavailable')
-        return null
-      }
-
-      return new Promise((resolve) => {
-        try {
-          const service = new google.maps.places.PlacesService(document.createElement('div'))
-          
-          service.getDetails({
-            placeId: placeId,
-            fields: ['photos']
-          }, (place, status) => {
-            try {
-              if (status === google.maps.places.PlacesServiceStatus.OK && place?.photos && place.photos.length > 0) {
-                // Get the first photo URL with appropriate size
-                const photoUrl = place.photos[0].getUrl({ maxWidth: 400, maxHeight: 300 })
-                resolve(photoUrl)
-              } else {
-                if (status !== google.maps.places.PlacesServiceStatus.OK) {
-                  console.warn('Places API request failed with status:', status)
-                }
-                resolve(null)
-              }
-            } catch (photoError) {
-              console.error('Error processing place photo:', photoError)
-              resolve(null)
-            }
-          })
-        } catch (serviceError) {
-          console.error('Error creating Places service:', serviceError)
-          resolve(null)
-        }
-      })
-    } catch (error) {
-      console.error('Error fetching place photo:', error)
-      return null
-    }
-  }, [])
 
   // Helper function to check for changes between old and new itinerary data
   const checkForChanges = useCallback((oldData: any, newData: any) => {
@@ -529,7 +482,7 @@ export default function ItineraryDetail() {
         if (oldActivity.votes?.length === newActivity.votes?.length) {
           for (let k = 0; k < oldActivity.votes.length; k++) {
             const oldVote = oldActivity.votes[k]
-            const newVote = newActivity.votes.find(v => v.userId === oldVote.userId)
+            const newVote = newActivity.votes.find((v: any) => v.userId === oldVote.userId)
             if (!newVote || oldVote.type !== newVote.type) {
               return true
             }
@@ -560,12 +513,24 @@ export default function ItineraryDetail() {
           const hasChanges = checkForChanges(itinerary, newData)
           if (hasChanges) {
             setItinerary(newData)
+            // For background updates, preserve the selected day if it still exists
+            // Only set to first day if no day is currently selected or selected day no longer exists
+            setSelectedDay(prevSelectedDay => {
+              if (prevSelectedDay && newData.days.some((day: any) => day.id === prevSelectedDay)) {
+                return prevSelectedDay // Keep current selection if it still exists
+              }
+              return newData.days.length > 0 ? newData.days[0].id : null
+            })
           }
         } else {
           setItinerary(newData)
-          if (newData.days.length > 0 && !selectedDay) {
-            setSelectedDay(newData.days[0].id)
-          }
+          // For non-background updates, preserve selected day or set to first day
+          setSelectedDay(prevSelectedDay => {
+            if (prevSelectedDay && newData.days.some((day: any) => day.id === prevSelectedDay)) {
+              return prevSelectedDay // Keep current selection if it still exists
+            }
+            return newData.days.length > 0 ? newData.days[0].id : null
+          })
         }
       } else if (response.status === 401) {
         router.push('/login')
@@ -615,31 +580,31 @@ export default function ItineraryDetail() {
 
     const interval = setInterval(() => {
       // Only poll if user is not actively interacting with the page and tab is visible
-      if (!showAddActivity && !showAddMember && !isSubmittingComment && !document.hidden) {
+      if (!showAddActivity && !showAddMember && !isSubmittingComment && !isDeletingActivity && !document.hidden) {
         fetchItinerary(params.id as string, true) // true = background update
       }
     }, 5000) // Poll every 5 seconds
 
     return () => clearInterval(interval)
-  }, [params.id, session?.user?.id]) // Stable dependencies only
+  }, [params.id, session?.user?.id, showAddActivity, showAddMember, isSubmittingComment, isDeletingActivity]) // Include all polling conditions
 
   // Event handlers
   const handleVote = useCallback(async (activityId: string, type: 'up' | 'down') => {
     if (!session?.user?.id || !itinerary) return
 
     // Optimistic update - immediately update the UI before server response
-    setItinerary(prevItinerary => {
+    setItinerary((prevItinerary: any) => {
       if (!prevItinerary) return prevItinerary
       
       return {
         ...prevItinerary,
-        days: prevItinerary.days.map(day => ({
+        days: prevItinerary.days.map((day: any) => ({
           ...day,
-          activities: day.activities.map(activity => {
+          activities: day.activities.map((activity: any) => {
             if (activity.id !== activityId) return activity
             
             // Find existing vote from current user
-            const existingVoteIndex = activity.votes.findIndex(v => v.userId === session.user.id)
+            const existingVoteIndex = activity.votes.findIndex((v: any) => v.userId === session.user.id)
             const newVotes = [...activity.votes]
             
             if (existingVoteIndex >= 0) {
@@ -761,6 +726,8 @@ export default function ItineraryDetail() {
     if (!confirm('Are you sure you want to delete this activity?')) return
     if (!session?.user?.id || !itinerary) return
 
+    setIsDeletingActivity(true)
+
     // Optimistic update - remove activity immediately
     setItinerary(prevItinerary => {
       if (!prevItinerary) return prevItinerary
@@ -791,6 +758,8 @@ export default function ItineraryDetail() {
       await fetchItinerary(params.id as string, true)
       console.error('Error deleting activity:', error)
       alert('Failed to delete activity. Please try again.')
+    } finally {
+      setIsDeletingActivity(false)
     }
   }, [session?.user?.id, params.id, itinerary, fetchItinerary])
 
@@ -922,16 +891,6 @@ export default function ItineraryDetail() {
   }, [params.id, session?.user?.id, isAdmin, fetchItinerary])
 
   // Helper function to toggle amenities
-  const toggleAmenity = (amenity: string) => {
-    const updatedAmenities = newAccommodation.amenities.includes(amenity)
-      ? newAccommodation.amenities.filter(a => a !== amenity)
-      : [...newAccommodation.amenities, amenity]
-    
-    setNewAccommodation(prev => ({
-      ...prev,
-      amenities: updatedAmenities
-    }))
-  }
 
   // Accommodation handlers
   const handleAddAccommodation = async (e?: React.FormEvent) => {
@@ -979,6 +938,54 @@ export default function ItineraryDetail() {
       console.error('Error adding accommodation:', error)
       alert('Failed to add accommodation. Please try again.')
     }
+  }
+
+  // Modal handlers
+  const handleAddMemberSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMemberEmail.trim()) return
+
+    setIsAddingMember(true)
+    try {
+      const response = await fetch(`/api/itineraries/${params.id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newMemberEmail.trim() })
+      })
+
+      if (response.ok) {
+        setShowAddMember(false)
+        setNewMemberEmail('')
+        await fetchItinerary(params.id as string, true)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to add member')
+      }
+    } catch (error) {
+      console.error('Error adding member:', error)
+      alert('Failed to add member')
+    } finally {
+      setIsAddingMember(false)
+    }
+  }
+
+  const handleCloseAddAccommodation = () => {
+    const memberCount = itinerary?.members?.length || 1
+    setNewAccommodation({
+      name: '',
+      type: 'hotel',
+      location: '',
+      locationPlaceId: '',
+      locationLat: null,
+      locationLng: null,
+      photoUrl: '',
+      checkIn: '',
+      nights: 1,
+      guests: memberCount,
+      amenities: [],
+      notes: ''
+    })
+    setShowAddAccommodation(false)
   }
 
   // Enhanced loading and error states
@@ -1051,8 +1058,6 @@ export default function ItineraryDetail() {
             <AccommodationPlanner 
               itineraryId={itinerary.id} 
               onAccommodationsChange={() => loadAccommodations(itinerary.id)}
-              itineraryDays={itinerary.days}
-              memberCount={itinerary.members?.length || 1}
               onAddAccommodation={() => {
                 const memberCount = itinerary?.members?.length || 1
                 setNewAccommodation(prev => ({
@@ -1117,382 +1122,32 @@ export default function ItineraryDetail() {
       )}
 
       {/* Add Activity Modal */}
-      {showAddActivity && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-8 p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Activity</h3>
-            <form onSubmit={handleAddActivity} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={newActivity.title}
-                  onChange={(e) => setNewActivity(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={newActivity.description}
-                  onChange={(e) => setNewActivity(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                <LocationSearch
-                  value={newActivity.location}
-                  onChange={(location, placeId, lat, lng) => {
-                    setNewActivity(prev => ({
-                      ...prev,
-                      location,
-                      locationPlaceId: placeId || '',
-                      locationLat: lat,
-                      locationLng: lng
-                    }))
-                  }}
-                  placeholder="Search for a location..."
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                  <input
-                    type="time"
-                    value={newActivity.startTime}
-                    onChange={(e) => setNewActivity(prev => ({ ...prev, startTime: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
-                  <input
-                    type="number"
-                    value={newActivity.duration}
-                    onChange={(e) => setNewActivity(prev => ({ ...prev, duration: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cost ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={newActivity.cost}
-                  onChange={(e) => setNewActivity(prev => ({ ...prev, cost: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                />
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="isGroupActivity"
-                  checked={newActivity.isGroupActivity}
-                  onChange={(e) => setNewActivity(prev => ({ ...prev, isGroupActivity: e.target.checked }))}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="isGroupActivity" className="ml-2 text-sm text-gray-700">
-                  Group activity (everyone participates)
-                </label>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAddActivity(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  Add Activity
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <AddActivityModal
+        isOpen={showAddActivity}
+        onClose={() => setShowAddActivity(false)}
+        newActivity={newActivity}
+        setNewActivity={setNewActivity}
+        onSubmit={handleAddActivity}
+      />
 
       {/* Add Member Modal */}
-      {showAddMember && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-8 p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Add Member to Trip</h3>
-              <button
-                onClick={() => setShowAddMember(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={async (e) => {
-              e.preventDefault()
-              if (!newMemberEmail.trim()) return
+      <AddMemberModal
+        isOpen={showAddMember}
+        onClose={() => setShowAddMember(false)}
+        newMemberEmail={newMemberEmail}
+        setNewMemberEmail={setNewMemberEmail}
+        isAddingMember={isAddingMember}
+        onSubmit={handleAddMemberSubmit}
+      />
 
-              setIsAddingMember(true)
-              try {
-                const response = await fetch(`/api/itineraries/${params.id}/members`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ email: newMemberEmail.trim() })
-                })
-
-                if (response.ok) {
-                  setShowAddMember(false)
-                  setNewMemberEmail('')
-                  await fetchItinerary(params.id as string, true)
-                } else {
-                  const error = await response.json()
-                  alert(error.error || 'Failed to add member')
-                }
-              } catch (error) {
-                console.error('Error adding member:', error)
-                alert('Failed to add member')
-              } finally {
-                setIsAddingMember(false)
-              }
-            }} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={newMemberEmail}
-                  onChange={(e) => setNewMemberEmail(e.target.value)}
-                  placeholder="Enter member's email"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAddMember(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isAddingMember}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg transition-colors"
-                >
-                  {isAddingMember ? 'Adding...' : 'Add Member'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add Accommodation Modal - Placeholder for now */}
-      {showAddAccommodation && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-start justify-center pt-8 p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 rounded-t-lg">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Add Accommodation</h3>
-                <button
-                  onClick={() => setShowAddAccommodation(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="px-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
-                  <LocationSearch
-                    value={newAccommodation.location}
-                    onChange={async (location, placeData) => {
-                      const placeId = placeData?.place_id || ''
-                      let photoUrl = ''
-
-                      // Fetch photo if we have a place ID
-                      if (placeId) {
-                        const photo = await fetchPlacePhoto(placeId)
-                        photoUrl = photo || ''
-                      }
-
-                      // Auto-populate name from place name if name is empty
-                      const placeName = placeData?.name || ''
-
-                      setNewAccommodation(prev => ({
-                        ...prev,
-                        location,
-                        locationPlaceId: placeId,
-                        locationLat: placeData?.geometry.location.lat || null,
-                        locationLng: placeData?.geometry.location.lng || null,
-                        photoUrl: photoUrl,
-                        // Only populate name if it's currently empty
-                        name: prev.name.trim() === '' ? placeName : prev.name,
-                      }))
-                    }}
-                    placeholder="Search for accommodation location..."
-                    className="w-full"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                  <input
-                    type="text"
-                    value={newAccommodation.name}
-                    onChange={(e) => setNewAccommodation(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Hotel California"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                  <select
-                    value={newAccommodation.type}
-                    onChange={(e) => setNewAccommodation(prev => ({ ...prev, type: e.target.value as any }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="hotel">Hotel</option>
-                    <option value="hostel">Hostel</option>
-                    <option value="apartment">Apartment</option>
-                    <option value="bnb">B&B / Airbnb</option>
-                    <option value="resort">Resort</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Guests</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={newAccommodation.guests}
-                    onChange={(e) => setNewAccommodation(prev => ({ ...prev, guests: parseInt(e.target.value) || 1 }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Check-in</label>
-                  <input
-                    type="date"
-                    value={newAccommodation.checkIn}
-                    onChange={(e) => setNewAccommodation(prev => ({ ...prev, checkIn: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nights</label>
-                  <select
-                    value={newAccommodation.nights}
-                    onChange={(e) => setNewAccommodation(prev => ({ ...prev, nights: parseInt(e.target.value) }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    {Array.from({ length: 30 }, (_, i) => i + 1).map(nights => (
-                      <option key={nights} value={nights}>
-                        {nights} night{nights !== 1 ? 's' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Amenities</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {[
-                    { value: 'wifi', label: 'WiFi' },
-                    { value: 'parking', label: 'Parking' },
-                    { value: 'breakfast', label: 'Breakfast' },
-                    { value: 'restaurant', label: 'Restaurant' },
-                    { value: 'pool', label: 'Pool' },
-                    { value: 'gym', label: 'Gym' },
-                    { value: 'spa', label: 'Spa' },
-                    { value: 'laundry', label: 'Laundry' }
-                  ].map(amenity => (
-                    <label key={amenity.value} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={newAccommodation.amenities.includes(amenity.value)}
-                        onChange={() => toggleAmenity(amenity.value)}
-                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-                      <span>{amenity.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                <textarea
-                  value={newAccommodation.notes || ''}
-                  onChange={(e) => setNewAccommodation(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Special requests, booking reference, etc."
-                  rows={2}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
-              </div>
-            </div>
-
-            <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-200 rounded-b-lg">
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewAccommodation({
-                      name: '',
-                      type: 'hotel',
-                      location: '',
-                      locationPlaceId: '',
-                      locationLat: null,
-                      locationLng: null,
-                      photoUrl: '',
-                      checkIn: '',
-                      nights: 1,
-                      guests: 1,
-                      amenities: [],
-                      notes: ''
-                    })
-                    setShowAddAccommodation(false)
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAddAccommodation}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                >
-                  Add Accommodation
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Add Accommodation Modal */}
+      <AddAccommodationModal
+        isOpen={showAddAccommodation}
+        onClose={handleCloseAddAccommodation}
+        newAccommodation={newAccommodation}
+        setNewAccommodation={setNewAccommodation}
+        onSubmit={handleAddAccommodation}
+      />
     </div>
   )
 }

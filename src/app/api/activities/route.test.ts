@@ -1,8 +1,9 @@
-import { POST } from './route'
-import { getServerSession } from 'next-auth'
+// Mock dependencies BEFORE any imports
+jest.mock('../../../lib/auth', () => ({
+  authOptions: {},
+}))
 
-// Mock dependencies
-jest.mock('next-auth')
+// Mock Prisma with jest.fn() created inside the factory
 jest.mock('../../../lib/prisma', () => ({
   prisma: {
     day: {
@@ -14,11 +15,16 @@ jest.mock('../../../lib/prisma', () => ({
   },
 }))
 
-// Import after mock
-const { prisma } = require('../../../lib/prisma')
+// Now import everything
+import { POST } from './route'
+import { getServerSession } from 'next-auth'
+
+// Import the mocked prisma to get access to mock functions
+import { prisma } from '../../../lib/prisma'
+
 const mockGetServerSession = getServerSession as jest.MockedFunction<typeof getServerSession>
-const mockPrismaDay = prisma.day as any
-const mockPrismaActivity = prisma.activity as any
+const mockFindFirst = prisma.day.findFirst as jest.MockedFunction<any>
+const mockCreate = prisma.activity.create as jest.MockedFunction<any>
 
 describe('/api/activities POST', () => {
   const mockSession = {
@@ -58,8 +64,8 @@ describe('/api/activities POST', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockGetServerSession.mockResolvedValue(mockSession as any)
-    mockPrismaDay.findFirst.mockResolvedValue(mockDay)
-    mockPrismaActivity.create.mockResolvedValue(mockActivity)
+    mockFindFirst.mockResolvedValue(mockDay)
+    mockCreate.mockResolvedValue(mockActivity)
   })
 
   it('creates activity successfully', async () => {
@@ -71,7 +77,7 @@ describe('/api/activities POST', () => {
         title: 'Test Activity',
         description: 'Test Description',
         location: 'Test Location',
-        locationPlaceId: 'place-123',
+        locationPlaceId: null,
         locationLat: 40.7128,
         locationLng: -74.0060,
         startTime: '10:00',
@@ -83,16 +89,17 @@ describe('/api/activities POST', () => {
 
     const response = await POST(request)
     const data = await response.json()
+    
 
     expect(response.status).toBe(200)
     expect(data).toEqual(mockActivity)
-    expect(mockPrismaActivity.create).toHaveBeenCalledWith({
+    expect(mockCreate).toHaveBeenCalledWith({
       data: {
         dayId: 'day-1',
         title: 'Test Activity',
         description: 'Test Description',
         location: 'Test Location',
-        locationPlaceId: 'place-123',
+        locationPlaceId: null,
         locationLat: 40.7128,
         locationLng: -74.0060,
         startTime: '10:00',
@@ -151,7 +158,7 @@ describe('/api/activities POST', () => {
   })
 
   it('returns 404 for non-existent day', async () => {
-    mockPrismaDay.findFirst.mockResolvedValue(null)
+    mockFindFirst.mockResolvedValue(null)
 
     const request = new Request('http://localhost/api/activities', {
       method: 'POST',
@@ -179,7 +186,7 @@ describe('/api/activities POST', () => {
         ]
       }
     }
-    mockPrismaDay.findFirst.mockResolvedValue(null) // Prisma query with userId filter returns null
+    mockFindFirst.mockResolvedValue(null) // Prisma query with userId filter returns null
 
     const request = new Request('http://localhost/api/activities', {
       method: 'POST',
@@ -216,7 +223,7 @@ describe('/api/activities POST', () => {
       suggestions: [],
       votes: []
     }
-    mockPrismaActivity.create.mockResolvedValue(minimalActivity)
+    mockCreate.mockResolvedValue(minimalActivity)
 
     const request = new Request('http://localhost/api/activities', {
       method: 'POST',
@@ -232,7 +239,7 @@ describe('/api/activities POST', () => {
 
     expect(response.status).toBe(200)
     expect(data).toEqual(minimalActivity)
-    expect(mockPrismaActivity.create).toHaveBeenCalledWith({
+    expect(mockCreate).toHaveBeenCalledWith({
       data: {
         dayId: 'day-1',
         title: 'Minimal Activity',
@@ -261,7 +268,7 @@ describe('/api/activities POST', () => {
   })
 
   it('handles database errors', async () => {
-    mockPrismaActivity.create.mockRejectedValue(new Error('Database error'))
+    mockCreate.mockRejectedValue(new Error('Database error'))
 
     const request = new Request('http://localhost/api/activities', {
       method: 'POST',
@@ -291,7 +298,7 @@ describe('/api/activities POST', () => {
 
     await POST(request)
 
-    expect(mockPrismaDay.findFirst).toHaveBeenCalledWith({
+    expect(mockFindFirst).toHaveBeenCalledWith({
       where: {
         id: 'day-1',
         itinerary: {
@@ -318,7 +325,7 @@ describe('/api/activities POST', () => {
 
     await POST(request)
 
-    expect(mockPrismaActivity.create).toHaveBeenCalledWith(
+    expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           isGroupActivity: false

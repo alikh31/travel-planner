@@ -54,7 +54,11 @@ describe('TimeGap', () => {
                   duration: { text: '8 mins' },
                   distance: { text: '0.6 km' },
                   transit: {
-                    line: { short_name: '6', name: '6 Train' },
+                    line: { 
+                      short_name: '6', 
+                      name: '6 Train',
+                      vehicle: { type: 'SUBWAY' }
+                    },
                     departure_stop: { name: '59th St' },
                     arrival_stop: { name: '86th St' },
                     departure_time: { text: '10:15am' },
@@ -76,11 +80,15 @@ describe('TimeGap', () => {
     },
     DistanceMatrixStatus: { OK: 'OK' },
     DirectionsStatus: { OK: 'OK' },
+    UnitSystem: { METRIC: 'METRIC' },
   }
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockLoadGoogleMaps.mockResolvedValue(mockGoogleMaps as any)
+    // Mock loadGoogleMaps to return a properly structured google object
+    mockLoadGoogleMaps.mockResolvedValue({
+      maps: mockGoogleMaps
+    } as any)
     
     // Mock localStorage
     Object.defineProperty(window, 'localStorage', {
@@ -210,8 +218,15 @@ describe('TimeGap', () => {
     const transitButton = screen.getByTitle('Transit')
     fireEvent.click(transitButton)
     
+    // Wait for transit details to load and appear
     await waitFor(() => {
-      expect(screen.getByText('6 Train')).toBeInTheDocument()
+      expect(screen.getByText('Transit Details (15 mins)')).toBeInTheDocument()
+    })
+    
+    // The details should be expanded by default (showTransitDetails starts as true)
+    await waitFor(() => {
+      // Look for the line name and vehicle type (they're rendered as "6 SUBWAY")
+      expect(screen.getByText(/6.*SUBWAY/)).toBeInTheDocument()
       expect(screen.getByText('59th St → 86th St')).toBeInTheDocument()
       expect(screen.getByText('10:15am - 10:23am')).toBeInTheDocument()
     })
@@ -294,16 +309,22 @@ describe('TimeGap', () => {
   })
 
   it('handles travel time calculation errors', async () => {
-    const mockDistanceMatrix = mockGoogleMaps.DistanceMatrixService()
-    mockDistanceMatrix.getDistanceMatrix.mockImplementation((request, callback) => {
-      callback({ rows: [{ elements: [{ status: 'ZERO_RESULTS' }] }] }, 'ZERO_RESULTS')
-    })
+    // Mock the DistanceMatrixService to return error before rendering
+    const originalService = mockGoogleMaps.DistanceMatrixService
+    mockGoogleMaps.DistanceMatrixService = jest.fn(() => ({
+      getDistanceMatrix: jest.fn((request, callback) => {
+        callback({ rows: [{ elements: [{ status: 'ZERO_RESULTS' }] }] }, 'ZERO_RESULTS')
+      })
+    }))
     
     render(<TimeGap {...mockProps} />)
     
     await waitFor(() => {
       expect(screen.getByText('Unable to calculate')).toBeInTheDocument()
     })
+    
+    // Restore original service
+    mockGoogleMaps.DistanceMatrixService = originalService
   })
 
   it('handles transit directions loading state', () => {

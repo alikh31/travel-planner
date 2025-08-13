@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         title,
         description: description || null,
         location: location || null,
-        locationPlaceId: locationPlaceId || null,
+        locationPlaceId: locationPlaceId?.place_id || null,
         locationLat: locationLat || null,
         locationLng: locationLng || null,
         startTime: startTime || null,

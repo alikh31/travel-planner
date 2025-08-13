@@ -17,7 +17,7 @@ interface Activity {
 
 interface ActivitiesMapProps {
   activities: Activity[]
-  selectedDay?: string
+  selectedDay?: string // Keep for compatibility but don't use
   onClose?: () => void
   isModal?: boolean
   className?: string
@@ -26,7 +26,7 @@ interface ActivitiesMapProps {
 
 const ActivitiesMap = memo(function ActivitiesMap({ 
   activities, 
-  selectedDay, 
+  selectedDay, // eslint-disable-line @typescript-eslint/no-unused-vars
   onClose, 
   isModal = false,
   className = "",
@@ -341,7 +341,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
   // Handle transport mode changes from TimeGap components
   useEffect(() => {
     const handleTransportModeChange = async (event: CustomEvent) => {
-      const { routeKey, mode, fromLocation, toLocation } = event.detail
+      const { } = event.detail
       
       if (!mapInstanceRef.current) return
       

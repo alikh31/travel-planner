@@ -1,9 +1,9 @@
-import { POST, DELETE, PUT } from './route'
-import { getServerSession } from 'next-auth'
-import { NextRequest } from 'next/server'
+// Mock dependencies BEFORE any imports - next-auth mocked globally
+jest.mock('../../../../../lib/auth', () => ({
+  authOptions: {},
+}))
 
-// Mock dependencies
-jest.mock('next-auth')
+// Mock Prisma with jest.fn() created inside the factory
 jest.mock('../../../../../lib/prisma', () => ({
   prisma: {
     itinerary: {
@@ -21,12 +21,21 @@ jest.mock('../../../../../lib/prisma', () => ({
   },
 }))
 
-// Import after mock
-const { prisma } = require('../../../../../lib/prisma')
+// Now import everything
+import { POST, DELETE, PUT } from './route'
+import { getServerSession } from 'next-auth'
+import { NextRequest } from 'next/server'
+
+// Import the mocked prisma to get access to mock functions
+import { prisma } from '../../../../../lib/prisma'
+
 const mockGetServerSession = getServerSession as jest.MockedFunction<typeof getServerSession>
-const mockPrismaItinerary = prisma.itinerary as any
-const mockPrismaUser = prisma.user as any
-const mockPrismaGroupMember = prisma.groupMember as any
+const mockItineraryFindFirst = prisma.itinerary.findFirst as jest.MockedFunction<any>
+const mockUserFindUnique = prisma.user.findUnique as jest.MockedFunction<any>
+const mockGroupMemberFindFirst = prisma.groupMember.findFirst as jest.MockedFunction<any>
+const mockGroupMemberCreate = prisma.groupMember.create as jest.MockedFunction<any>
+const mockGroupMemberDeleteMany = prisma.groupMember.deleteMany as jest.MockedFunction<any>
+const mockGroupMemberUpdateMany = prisma.groupMember.updateMany as jest.MockedFunction<any>
 
 describe('/api/itineraries/[id]/members', () => {
   const mockSession = {
@@ -63,10 +72,10 @@ describe('/api/itineraries/[id]/members', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockGetServerSession.mockResolvedValue(mockSession as any)
-    mockPrismaItinerary.findFirst.mockResolvedValue(mockItinerary)
-    mockPrismaUser.findUnique.mockResolvedValue(mockUser)
-    mockPrismaGroupMember.findFirst.mockResolvedValue(null)
-    mockPrismaGroupMember.create.mockResolvedValue(mockMember)
+    mockItineraryFindFirst.mockResolvedValue(mockItinerary)
+    mockUserFindUnique.mockResolvedValue(mockUser)
+    mockGroupMemberFindFirst.mockResolvedValue(null)
+    mockGroupMemberCreate.mockResolvedValue(mockMember)
   })
 
   describe('POST - Add Member', () => {
@@ -84,7 +93,7 @@ describe('/api/itineraries/[id]/members', () => {
 
       expect(response.status).toBe(200)
       expect(data).toEqual(mockMember)
-      expect(mockPrismaGroupMember.create).toHaveBeenCalledWith({
+      expect(mockGroupMemberCreate).toHaveBeenCalledWith({
         data: {
           itineraryId: 'itinerary-1',
           userId: 'new-user-id',
@@ -130,7 +139,7 @@ describe('/api/itineraries/[id]/members', () => {
     })
 
     it('returns 404 for non-existent itinerary', async () => {
-      mockPrismaItinerary.findFirst.mockResolvedValue(null)
+      mockItineraryFindFirst.mockResolvedValue(null)
 
       const request = new NextRequest('http://localhost/api/itineraries/itinerary-1/members', {
         method: 'POST',
@@ -147,7 +156,7 @@ describe('/api/itineraries/[id]/members', () => {
     })
 
     it('returns 404 for non-existent user', async () => {
-      mockPrismaUser.findUnique.mockResolvedValue(null)
+      mockUserFindUnique.mockResolvedValue(null)
 
       const request = new NextRequest('http://localhost/api/itineraries/itinerary-1/members', {
         method: 'POST',
@@ -164,7 +173,7 @@ describe('/api/itineraries/[id]/members', () => {
     })
 
     it('returns 400 for existing member', async () => {
-      mockPrismaGroupMember.findFirst.mockResolvedValue({
+      mockGroupMemberFindFirst.mockResolvedValue({
         id: 'existing-member',
         itineraryId: 'itinerary-1',
         userId: 'new-user-id'
@@ -194,7 +203,7 @@ describe('/api/itineraries/[id]/members', () => {
 
       await POST(request, mockContext)
 
-      expect(mockPrismaGroupMember.create).toHaveBeenCalledWith(
+      expect(mockGroupMemberCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             role: 'member'
@@ -215,7 +224,7 @@ describe('/api/itineraries/[id]/members', () => {
 
       expect(response.status).toBe(200)
       expect(data.message).toBe('Member removed successfully')
-      expect(mockPrismaGroupMember.deleteMany).toHaveBeenCalledWith({
+      expect(mockGroupMemberDeleteMany).toHaveBeenCalledWith({
         where: {
           itineraryId: 'itinerary-1',
           userId: 'member-user-id',
@@ -254,7 +263,7 @@ describe('/api/itineraries/[id]/members', () => {
       mockGetServerSession.mockResolvedValue(memberSession as any)
 
       // Mock itinerary access for member removing themselves
-      mockPrismaItinerary.findFirst.mockResolvedValue({
+      mockItineraryFindFirst.mockResolvedValue({
         ...mockItinerary,
         members: [
           { userId: 'admin-user-id', role: 'admin' },
@@ -274,7 +283,7 @@ describe('/api/itineraries/[id]/members', () => {
 
   describe('PUT - Update Member Role', () => {
     it('updates member role successfully', async () => {
-      mockPrismaGroupMember.updateMany.mockResolvedValue({ count: 1 })
+      mockGroupMemberUpdateMany.mockResolvedValue({ count: 1 })
 
       const request = new NextRequest('http://localhost/api/itineraries/itinerary-1/members', {
         method: 'PUT',
@@ -289,7 +298,7 @@ describe('/api/itineraries/[id]/members', () => {
 
       expect(response.status).toBe(200)
       expect(data.message).toBe('Member role updated successfully')
-      expect(mockPrismaGroupMember.updateMany).toHaveBeenCalledWith({
+      expect(mockGroupMemberUpdateMany).toHaveBeenCalledWith({
         where: {
           itineraryId: 'itinerary-1',
           userId: 'member-user-id',
@@ -331,7 +340,7 @@ describe('/api/itineraries/[id]/members', () => {
     })
 
     it('returns 404 for non-existent member', async () => {
-      mockPrismaGroupMember.updateMany.mockResolvedValue({ count: 0 })
+      mockGroupMemberUpdateMany.mockResolvedValue({ count: 0 })
 
       const request = new NextRequest('http://localhost/api/itineraries/itinerary-1/members', {
         method: 'PUT',
@@ -366,7 +375,7 @@ describe('/api/itineraries/[id]/members', () => {
   })
 
   it('handles database errors gracefully', async () => {
-    mockPrismaGroupMember.create.mockRejectedValue(new Error('Database error'))
+    mockGroupMemberCreate.mockRejectedValue(new Error('Database error'))
 
     const request = new NextRequest('http://localhost/api/itineraries/itinerary-1/members', {
       method: 'POST',

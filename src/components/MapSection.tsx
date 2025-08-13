@@ -4,7 +4,15 @@ import { MapPin } from 'lucide-react'
 import ActivitiesMap from './ActivitiesMap'
 
 interface MapSectionProps {
-  activities: any[]
+  activities: Array<{
+    id: string
+    title: string
+    location?: string
+    locationLat?: number
+    locationLng?: number
+    startTime?: string
+    duration?: number
+  }>
   selectedDay: string | null
   hasSelectedDay: boolean
   accommodationLocation?: string

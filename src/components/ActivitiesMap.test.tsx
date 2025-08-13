@@ -95,7 +95,10 @@ describe('ActivitiesMap', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockLoadGoogleMaps.mockResolvedValue(mockGoogleMaps as any)
+    // Mock loadGoogleMaps to return a properly structured google object
+    mockLoadGoogleMaps.mockResolvedValue({
+      maps: mockGoogleMaps
+    } as any)
     
     // Mock localStorage
     Object.defineProperty(window, 'localStorage', {
@@ -120,7 +123,7 @@ describe('ActivitiesMap', () => {
       expect(mockGoogleMaps.Map).toHaveBeenCalled()
     })
     
-    expect(mockGoogleMaps.Marker).toHaveBeenCalledTimes(2) // Two activity markers
+    expect(mockGoogleMaps.Marker).toHaveBeenCalledTimes(4) // Activity markers + accommodation markers
   })
 
   it('creates markers for activities with location data', async () => {

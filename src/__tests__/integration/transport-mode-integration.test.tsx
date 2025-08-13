@@ -102,6 +102,15 @@ describe('Transport Mode Integration', () => {
       extend: jest.fn(),
       getCenter: jest.fn(),
     })),
+    Geocoder: jest.fn(() => ({
+      geocode: jest.fn((request, callback) => {
+        callback([{
+          geometry: {
+            location: { lat: () => 40.7580, lng: () => -73.9855 }
+          }
+        }], 'OK')
+      }),
+    })),
     TravelMode: {
       DRIVING: 'DRIVING',
       WALKING: 'WALKING',
@@ -112,11 +121,15 @@ describe('Transport Mode Integration', () => {
     SymbolPath: { CIRCLE: 'circle' },
     DirectionsStatus: { OK: 'OK' },
     DistanceMatrixStatus: { OK: 'OK' },
+    UnitSystem: { METRIC: 'METRIC' },
   }
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockLoadGoogleMaps.mockResolvedValue(mockGoogleMaps as any)
+    // Mock loadGoogleMaps to return a properly structured google object
+    mockLoadGoogleMaps.mockResolvedValue({
+      maps: mockGoogleMaps
+    } as any)
     
     // Mock localStorage
     Object.defineProperty(window, 'localStorage', {
@@ -230,7 +243,7 @@ describe('Transport Mode Integration', () => {
     })
 
     expect(mockGetItem).toHaveBeenCalledWith(
-      'transport_Museum_Visit_to_Central_Park'
+      'transport_Art_Museum,_New_York_to_Central_Park,_New_York'
     )
   })
 

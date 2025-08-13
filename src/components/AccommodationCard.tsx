@@ -1,11 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Hotel, MapPin, Users, Calendar, Star } from 'lucide-react'
+import { Hotel, MapPin, Users, Calendar } from 'lucide-react'
 import { getPlacePhoto } from '@/lib/googleMaps'
 
 interface AccommodationCardProps {
-  accommodation: any
+  accommodation: {
+    id?: string
+    name: string
+    address: string
+    rating?: number
+    photos?: Array<{ photo_reference: string }>
+    price_level?: number
+    checkIn?: string
+    checkOut?: string
+    nights?: number
+  }
   cardNumber?: number
   isStart?: boolean
   isEnd?: boolean

@@ -34,7 +34,7 @@ export default function LocationSearch({
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
-  const [googleMaps, setGoogleMaps] = useState<any>(null)
+  const [googleMaps, setGoogleMaps] = useState<typeof globalThis.google | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout>()
 
   // Initialize Google Maps once
@@ -72,7 +72,7 @@ export default function LocationSearch({
           query,
           type: 'establishment',
         },
-        (results: any[], status: any) => {
+        (results: google.maps.places.PlaceResult[] | null, status: google.maps.places.PlacesServiceStatus) => {
           if (status === googleMaps.maps.places.PlacesServiceStatus.OK && results) {
             const places: PlaceResult[] = results.slice(0, 5).map((place) => ({
               name: place.name || '',

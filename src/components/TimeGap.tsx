@@ -18,7 +18,7 @@ type TransportMode = 'driving' | 'walking' | 'transit' | 'bicycling'
 
 interface TransportOption {
   mode: TransportMode
-  icon: React.ComponentType<any>
+  icon: React.ComponentType<{ className?: string }>
   label: string
   color: string
 }

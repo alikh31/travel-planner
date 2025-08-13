@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const nextJest = require('next/jest')
 
 const createJestConfig = nextJest({
@@ -11,6 +12,9 @@ const customJestConfig = {
   moduleNameMapping: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(jose|@googlemaps|openid-client|next-auth|@next-auth)/)',
+  ],
   collectCoverageFrom: [
     'src/**/*.{js,jsx,ts,tsx}',
     '!src/**/*.d.ts',

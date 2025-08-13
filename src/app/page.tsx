@@ -25,7 +25,12 @@ interface Itinerary {
   days: Array<{
     id: string
     date: string
-    activities: any[]
+    activities: Array<{
+      id: string
+      title: string
+      startTime?: string
+      duration?: number
+    }>
   }>
 }
 

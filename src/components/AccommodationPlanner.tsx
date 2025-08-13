@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { Hotel, ChevronDown, ChevronUp, MapPin, Star, DollarSign, Calendar, Users, Wifi, Car, Coffee, Utensils } from 'lucide-react'
-import LocationSearch from './LocationSearch'
 
 interface AccommodationPlannerProps {
   itineraryId: string
   className?: string
   onAccommodationsChange?: () => void
-  itineraryDays?: Array<{ id: string; date: string }>
-  memberCount?: number
+  itineraryDays?: Array<{ id: string; date: string }> // Keep for compatibility
+  memberCount?: number // Keep for compatibility  
   onAddAccommodation?: () => void
 }
 
@@ -58,13 +57,10 @@ export default function AccommodationPlanner({
   itineraryId, 
   className = "",
   onAccommodationsChange,
-  itineraryDays = [],
-  memberCount = 1,
   onAddAccommodation
 }: AccommodationPlannerProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [accommodations, setAccommodations] = useState<Accommodation[]>([])
-  const [isLoading, setIsLoading] = useState(false)
 
   // Remember expansion state using localStorage
   const storageKey = `accommodation-expanded-${itineraryId}`
@@ -123,19 +119,6 @@ export default function AccommodationPlanner({
     return checkOutDate.toISOString().split('T')[0]
   }
 
-  // Function to check if a specific date has accommodation coverage
-  const hasAccommodationForDate = (date: string) => {
-    return accommodations.some(accommodation => {
-      if (!accommodation.checkIn || !accommodation.nights) return false
-      
-      const checkInDate = new Date(accommodation.checkIn)
-      const checkOutDate = new Date(checkInDate.getTime() + accommodation.nights * 24 * 60 * 60 * 1000)
-      const targetDate = new Date(date)
-      
-      // Check if target date falls within accommodation period (inclusive of check-in, exclusive of check-out)
-      return targetDate >= checkInDate && targetDate < checkOutDate
-    })
-  }
 
 
   return (
