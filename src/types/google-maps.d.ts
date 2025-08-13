@@ -16,6 +16,13 @@ declare global {
       open(map: Map, marker: Marker): void
     }
     
+    class DirectionsRenderer {
+      constructor(options?: any)
+      setMap(map: Map | null): void
+      setDirections(directions: any): void
+      getDirections(): any
+    }
+    
     namespace event {
       function clearInstanceListeners(instance: any): void
     }

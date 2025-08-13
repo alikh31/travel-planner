@@ -1,5 +1,7 @@
 'use client'
 
+/// <reference path="../types/google-maps.d.ts" />
+
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { MapPin, X } from 'lucide-react'
 
@@ -33,9 +35,9 @@ const ActivitiesMap = memo(function ActivitiesMap({
   accommodationLocation 
 }: ActivitiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<google.maps.Map | null>(null)
-  const markersRef = useRef<google.maps.Marker[]>([])
-  const routesRef = useRef<google.maps.DirectionsRenderer[]>([])
+  const mapInstanceRef = useRef<any>(null)
+  const markersRef = useRef<any[]>([])
+  const routesRef = useRef<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -95,7 +97,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
             const geocoder = new google.maps.Geocoder()
             
             // Geocode accommodation location to get coordinates
-            geocoder.geocode({ address: accommodationLocation }, (results, status) => {
+            geocoder.geocode({ address: accommodationLocation }, (results: any, status: any) => {
               if (status === 'OK' && results && results[0]) {
                 const accommodationPos = results[0].geometry.location
                 bounds.extend(accommodationPos)
@@ -200,11 +202,11 @@ const ActivitiesMap = memo(function ActivitiesMap({
       })
 
       // Helper function to get saved transport preference for a route
-      const getTransportPreference = (fromLocation: string, toLocation: string): google.maps.TravelMode => {
+      const getTransportPreference = (fromLocation: string, toLocation: string): any => {
         const routeKey = `transport_${fromLocation.replace(/\s+/g, '_')}_to_${toLocation.replace(/\s+/g, '_')}`
         try {
           const savedTransport = localStorage.getItem(routeKey) as 'driving' | 'walking' | 'transit' | 'bicycling'
-          const modeMap: Record<string, google.maps.TravelMode> = {
+          const modeMap: Record<string, any> = {
             'driving': google.maps.TravelMode.DRIVING,
             'walking': google.maps.TravelMode.WALKING,
             'transit': google.maps.TravelMode.TRANSIT,
@@ -248,7 +250,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
             origin: { lat: fromActivity.locationLat!, lng: fromActivity.locationLng! },
             destination: { lat: toActivity.locationLat!, lng: toActivity.locationLng! },
             travelMode: travelMode,
-          }, (result, status) => {
+          }, (result: any, status: any) => {
             if (status === 'OK' && result) {
               routeRenderer.setDirections(result)
             } else {
@@ -282,7 +284,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
             origin: accommodationLocation,
             destination: { lat: firstActivity.locationLat!, lng: firstActivity.locationLng! },
             travelMode: travelMode,
-          }, (result, status) => {
+          }, (result: any, status: any) => {
             if (status === 'OK' && result) {
               accommodationToFirstRenderer.setDirections(result)
             }
@@ -311,7 +313,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
             origin: { lat: lastActivity.locationLat!, lng: lastActivity.locationLng! },
             destination: accommodationLocation,
             travelMode: travelMode,
-          }, (result, status) => {
+          }, (result: any, status: any) => {
             if (status === 'OK' && result) {
               lastToAccommodationRenderer.setDirections(result)
             }
@@ -357,11 +359,11 @@ const ActivitiesMap = memo(function ActivitiesMap({
         routesRef.current.forEach(renderer => renderer.setMap(null))
         routesRef.current = []
         
-        const getTransportPreference = (fromLoc: string, toLoc: string): google.maps.TravelMode => {
+        const getTransportPreference = (fromLoc: string, toLoc: string): any => {
           const routeKey = `transport_${fromLoc.replace(/\s+/g, '_')}_to_${toLoc.replace(/\s+/g, '_')}`
           try {
             const savedTransport = localStorage.getItem(routeKey) as 'driving' | 'walking' | 'transit' | 'bicycling'
-            const modeMap: Record<string, google.maps.TravelMode> = {
+            const modeMap: Record<string, any> = {
               'driving': google.maps.TravelMode.DRIVING,
               'walking': google.maps.TravelMode.WALKING,
               'transit': google.maps.TravelMode.TRANSIT,
@@ -397,7 +399,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
               origin: { lat: fromActivity.locationLat!, lng: fromActivity.locationLng! },
               destination: { lat: toActivity.locationLat!, lng: toActivity.locationLng! },
               travelMode: travelMode,
-            }, (result, status) => {
+            }, (result: any, status: any) => {
               if (status === 'OK' && result) {
                 routeRenderer.setDirections(result)
               }
@@ -429,7 +431,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
               origin: accommodationLocation,
               destination: { lat: firstActivity.locationLat!, lng: firstActivity.locationLng! },
               travelMode: travelMode,
-            }, (result, status) => {
+            }, (result: any, status: any) => {
               if (status === 'OK' && result) {
                 accommodationToFirstRenderer.setDirections(result)
               }
@@ -458,7 +460,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
               origin: { lat: lastActivity.locationLat!, lng: lastActivity.locationLng! },
               destination: accommodationLocation,
               travelMode: travelMode,
-            }, (result, status) => {
+            }, (result: any, status: any) => {
               if (status === 'OK' && result) {
                 lastToAccommodationRenderer.setDirections(result)
               }
@@ -472,11 +474,11 @@ const ActivitiesMap = memo(function ActivitiesMap({
     }
 
     // Add event listener
-    window.addEventListener('transportModeChanged', handleTransportModeChange as EventListener)
+    window.addEventListener('transportModeChanged', handleTransportModeChange as any)
     
     // Cleanup
     return () => {
-      window.removeEventListener('transportModeChanged', handleTransportModeChange as EventListener)
+      window.removeEventListener('transportModeChanged', handleTransportModeChange as any)
     }
   }, [activitiesWithLocation, accommodationLocation])
 

@@ -146,12 +146,12 @@ export default function TimeGap({
         provideRouteAlternatives: false
       }
 
-      directionsService.route(request, (result, status) => {
+      directionsService.route(request, (result: any, status: any) => {
         if (status === google.maps.DirectionsStatus.OK && result) {
           const route = result.routes[0]
           const leg = route.legs[0]
           
-          const steps: TransitStep[] = leg.steps.map(step => {
+          const steps: TransitStep[] = leg.steps.map((step: any) => {
             if (step.travel_mode === google.maps.TravelMode.TRANSIT && step.transit) {
               return {
                 mode: 'TRANSIT',
@@ -233,7 +233,7 @@ export default function TimeGap({
             avoidHighways: false,
             avoidTolls: false
           },
-          (response, status) => {
+          (response: any, status: any) => {
             if (status === google.maps.DistanceMatrixStatus.OK && response) {
               const element = response.rows[0]?.elements[0]
               if (element && element.status === 'OK') {

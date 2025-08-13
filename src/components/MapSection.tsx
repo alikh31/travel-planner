@@ -30,7 +30,7 @@ export default function MapSection({
         <ActivitiesMap
           key={selectedDay}
           activities={activities}
-          selectedDay={selectedDay}
+          selectedDay={selectedDay || undefined}
           className="h-full"
           accommodationLocation={accommodationLocation}
         />

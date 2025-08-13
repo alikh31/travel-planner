@@ -22,9 +22,9 @@ const createLoader = () => {
   return loader
 }
 
-let google: typeof globalThis.google | null = null
+let google: any = null
 
-export const loadGoogleMaps = async (): Promise<typeof globalThis.google | null> => {
+export const loadGoogleMaps = async (): Promise<any> => {
   if (!GOOGLE_MAPS_API_KEY) {
     console.error('Google Maps API key is required')
     return null
@@ -81,7 +81,7 @@ export const searchPlaces = async (query: string): Promise<PlaceResult[]> => {
     const { places } = await Place.searchByText(request)
     
     if (places && places.length > 0) {
-      return places.map((place) => ({
+      return places.map((place: any) => ({
         name: place.displayName || '',
         formatted_address: place.formattedAddress || '',
         place_id: place.id || '',
@@ -108,9 +108,9 @@ export const searchPlaces = async (query: string): Promise<PlaceResult[]> => {
           query,
           type: 'establishment',
         },
-        (results, status) => {
+        (results: any, status: any) => {
           if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-            const places: PlaceResult[] = results.slice(0, 5).map((place) => ({
+            const places: PlaceResult[] = results.slice(0, 5).map((place: any) => ({
               name: place.name || '',
               formatted_address: place.formatted_address || '',
               place_id: place.place_id || '',
@@ -139,7 +139,7 @@ export const geocodeAddress = async (address: string): Promise<PlaceResult | nul
   return new Promise((resolve) => {
     const geocoder = new google.maps.Geocoder()
     
-    geocoder.geocode({ address }, (results, status) => {
+    geocoder.geocode({ address }, (results: any, status: any) => {
       if (status === google.maps.GeocoderStatus.OK && results && results[0]) {
         const result = results[0]
         resolve({
@@ -173,7 +173,7 @@ export const getPlacePhoto = async (placeId: string): Promise<string | null> => 
         placeId,
         fields: ['photos']
       },
-      (place, status) => {
+      (place: any, status: any) => {
         if (status === google.maps.places.PlacesServiceStatus.OK && place?.photos && place.photos.length > 0) {
           // Get the first photo with a reasonable size
           const photoUrl = place.photos[0].getUrl({

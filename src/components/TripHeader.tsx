@@ -25,6 +25,7 @@ interface Session {
 interface Itinerary {
   id: string
   title: string
+  destination?: string
   description?: string
   startDate: string
   endDate: string
@@ -140,7 +141,7 @@ export default function TripHeader({
                       <div className="flex items-center space-x-2">
                         <span className="font-medium text-gray-900">{member.user.name}</span>
                         {member.role === 'admin' && (
-                          <Crown className="h-4 w-4 text-yellow-500" title="Admin" />
+                          <Crown className="h-4 w-4 text-yellow-500" />
                         )}
                         {itinerary.createdBy === member.user.id && (
                           <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">

@@ -4,18 +4,34 @@ import { useState, useEffect } from 'react'
 import { Hotel, MapPin, Users, Calendar } from 'lucide-react'
 import { getPlacePhoto } from '@/lib/googleMaps'
 
+interface Accommodation {
+  id?: string
+  name: string
+  type: 'hotel' | 'hostel' | 'apartment' | 'bnb' | 'resort' | 'other'
+  location: string
+  locationPlaceId?: string
+  locationLat?: number
+  locationLng?: number
+  photoUrl?: string
+  checkIn: string
+  nights: number
+  guests: number
+  pricePerNight?: number
+  totalPrice?: number
+  rating?: number
+  amenities: string[]
+  notes?: string
+  bookingReference?: string
+  contactInfo?: string
+  // Additional properties that might come from Google Places API
+  address?: string
+  photos?: Array<{ photo_reference: string }>
+  price_level?: number
+  checkOut?: string
+}
+
 interface AccommodationCardProps {
-  accommodation: {
-    id?: string
-    name: string
-    address: string
-    rating?: number
-    photos?: Array<{ photo_reference: string }>
-    price_level?: number
-    checkIn?: string
-    checkOut?: string
-    nights?: number
-  }
+  accommodation: Accommodation
   cardNumber?: number
   isStart?: boolean
   isEnd?: boolean

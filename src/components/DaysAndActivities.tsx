@@ -81,19 +81,16 @@ export default function DaysAndActivities({
                   {accommodationStatus.status === 'full' && (
                     <Hotel 
                       className="h-4 w-4 text-green-600" 
-                      title={`Accommodation booked for all ${accommodationStatus.memberCount} members`}
                     />
                   )}
                   {accommodationStatus.status === 'partial' && (
                     <AlertTriangle 
                       className="h-4 w-4 text-orange-500" 
-                      title={`Partial accommodation: ${accommodationStatus.totalGuests}/${accommodationStatus.memberCount} guests covered`}
                     />
                   )}
                   {accommodationStatus.status === 'none' && (
                     <AlertCircle 
                       className="h-4 w-4 text-amber-500" 
-                      title="No accommodation booked for this day"
                     />
                   )}
                 </div>

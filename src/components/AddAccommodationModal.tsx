@@ -53,7 +53,7 @@ export default function AddAccommodationModal({
           service.getDetails({
             placeId: placeId,
             fields: ['photos']
-          }, (place, status) => {
+          }, (place: any, status: any) => {
             try {
               if (status === google.maps.places.PlacesServiceStatus.OK && place?.photos && place.photos.length > 0) {
                 // Get the first photo URL with appropriate size
