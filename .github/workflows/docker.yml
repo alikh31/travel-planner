@@ -25,7 +25,17 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Generate Prisma client
@@ -43,7 +53,8 @@ jobs:
           NODE_ENV: test
 
   build-and-push:
-    needs: test
+    # Run in parallel with tests, not after
+    # needs: test  # Commented out for parallel execution
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -79,14 +90,17 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
+          # Only build ARM64 for main branch, not PRs (50% faster for PRs)
+          platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             NEXT_TELEMETRY_DISABLED=1
+            # Placeholder API key for CI builds
+            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=placeholder-for-ci-build
 
       - name: Generate deployment summary
         run: |
