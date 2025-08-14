@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback, memo, use } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Calendar, MapPin, ThumbsUp, ThumbsDown, MessageSquare, Edit3, Trash2 } from 'lucide-react'
+import { Calendar, MapPin, ThumbsUp, ThumbsDown, MessageSquare, Edit3, Trash2, MoreVertical } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateTempId } from '@/lib/utils'
 import TimeGap from '@/components/TimeGap'
@@ -72,7 +72,9 @@ const ActivityItem = memo(({
   newComment, 
   setNewComment, 
   isSubmittingComment,
-  isAdmin
+  isAdmin,
+  openDropdown,
+  setOpenDropdown
 }: {
   activity: Activity
   activityNumber?: number
@@ -87,6 +89,8 @@ const ActivityItem = memo(({
   setNewComment: (value: string) => void
   isSubmittingComment: boolean
   isAdmin: boolean
+  openDropdown: string | null
+  setOpenDropdown: (id: string | null) => void
 }) => {
   const [locationImage, setLocationImage] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(false)
@@ -136,23 +140,43 @@ const ActivityItem = memo(({
               <h4 className="text-lg font-semibold text-gray-900 truncate">{activity.title}</h4>
             </div>
             {canEdit && (
-              <div className="flex items-center space-x-1 md:space-x-2 flex-shrink-0 ml-2">
+              <div className="relative flex-shrink-0 ml-2" data-dropdown>
                 <button
-                  onClick={() => onEditActivity(activity)}
-                  className="p-2 text-stone-gray-400 hover:text-stone-gray-600 hover:bg-stone-gray-50 rounded-lg touch-manipulation transition-colors md:p-1"
-                  title="Edit activity"
-                  aria-label="Edit activity"
+                  onClick={() => setOpenDropdown(openDropdown === activity.id ? null : activity.id)}
+                  className="p-2 text-stone-gray-400 hover:text-stone-gray-600 hover:bg-stone-gray-50 rounded-lg touch-manipulation transition-colors"
+                  title="Activity options"
+                  aria-label="Activity options"
+                  aria-expanded={openDropdown === activity.id}
+                  aria-haspopup="true"
                 >
-                  <Edit3 className="h-5 w-5 md:h-4 md:w-4" />
+                  <MoreVertical className="h-5 w-5" />
                 </button>
-                <button
-                  onClick={() => onDeleteActivity(activity.id)}
-                  className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg touch-manipulation transition-colors md:p-1"
-                  title="Delete activity"
-                  aria-label="Delete activity"
-                >
-                  <Trash2 className="h-5 w-5 md:h-4 md:w-4" />
-                </button>
+                
+                {/* Dropdown Menu */}
+                {openDropdown === activity.id && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-stone-gray-200 py-1 z-10">
+                    <button
+                      onClick={() => {
+                        onEditActivity(activity)
+                        setOpenDropdown(null)
+                      }}
+                      className="w-full flex items-center px-3 py-2 text-sm text-stone-gray-700 hover:bg-stone-gray-50 transition-colors"
+                    >
+                      <Edit3 className="h-4 w-4 mr-2" />
+                      Edit Activity
+                    </button>
+                    <button
+                      onClick={() => {
+                        onDeleteActivity(activity.id)
+                        setOpenDropdown(null)
+                      }}
+                      className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Activity
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -319,6 +343,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   const [newComment, setNewComment] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [showMap, setShowMap] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isDeletingActivity, setIsDeletingActivity] = useState(false)
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
@@ -337,6 +362,23 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     isGroupActivity: true
   })
 
+  // Click outside handler to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('[data-dropdown]')) {
+        setOpenDropdown(null)
+      }
+    }
+
+    if (openDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openDropdown])
 
   // Computed values
   const selectedDayData = useMemo(() => {
@@ -1031,6 +1073,8 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
               handleAddComment={handleAddComment}
               isSubmittingComment={isSubmittingComment}
               isAdmin={isAdmin}
+              openDropdown={openDropdown}
+              setOpenDropdown={setOpenDropdown}
               getAccommodationForDate={getAccommodationForDate}
               getAccommodationStatusForDate={getAccommodationStatusForDate}
               getTimeWithOffset={getTimeWithOffset}

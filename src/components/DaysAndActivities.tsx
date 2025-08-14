@@ -30,6 +30,8 @@ interface DaysAndActivitiesProps {
   getTimeWithOffset: any
   getEndTime: any
   TimeGap: any
+  openDropdown: string | null
+  setOpenDropdown: (id: string | null) => void
 }
 
 export default function DaysAndActivities({
@@ -55,7 +57,9 @@ export default function DaysAndActivities({
   getAccommodationStatusForDate,
   getTimeWithOffset,
   getEndTime,
-  TimeGap
+  TimeGap,
+  openDropdown,
+  setOpenDropdown
 }: DaysAndActivitiesProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -243,6 +247,8 @@ export default function DaysAndActivities({
                     setNewComment={setNewComment}
                     isSubmittingComment={isSubmittingComment}
                     isAdmin={isAdmin}
+                    openDropdown={openDropdown}
+                    setOpenDropdown={setOpenDropdown}
                   />
                   
                   {/* Show Commute and TimeGap between activities */}
