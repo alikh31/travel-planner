@@ -66,8 +66,16 @@ const ActivitiesMap = memo(function ActivitiesMap({
       // Create bounds to fit all activities
       const bounds = new google.maps.LatLngBounds()
       
+      // Use the first activity's location as the initial center
+      const firstActivity = activitiesWithLocation[0]
+      const initialCenter = {
+        lat: firstActivity.locationLat!,
+        lng: firstActivity.locationLng!
+      }
+      
       // Create map
       const map = new google.maps.Map(mapRef.current, {
+        center: initialCenter,
         zoom: 13,
         mapTypeId: google.maps.MapTypeId.ROADMAP,
         disableDefaultUI: true, // Remove all default controls
