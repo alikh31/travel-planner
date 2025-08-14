@@ -173,13 +173,6 @@ export default function DaysAndActivities({
           
           <div className="flex space-x-2">
             <button
-              onClick={() => setShowMap(true)}
-              className="hidden md:flex xl:hidden items-center px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Map className="h-4 w-4 mr-2" />
-              Show on Map
-            </button>
-            <button
               onClick={() => setShowAddActivity(true)}
               className="flex items-center px-4 py-2 bg-sunset-coral-600 hover:bg-sunset-coral-700 text-white rounded-lg transition-colors"
             >
@@ -301,10 +294,10 @@ export default function DaysAndActivities({
         )}
       </div>
 
-      {/* Mobile: Floating Show on Map Button */}
+      {/* Mobile & Mid-size: Floating Show on Map Button */}
       <button
         onClick={() => setShowMap(true)}
-        className="md:hidden fixed bottom-6 right-6 z-20 flex items-center px-4 py-3 bg-ocean-blue-600 hover:bg-ocean-blue-700 text-white rounded-full shadow-lg transition-colors"
+        className="xl:hidden fixed bottom-6 right-6 z-20 flex items-center px-4 py-3 bg-ocean-blue-600 hover:bg-ocean-blue-700 text-white rounded-full shadow-lg transition-colors"
       >
         <Map className="h-5 w-5 mr-2" />
         Show on Map
