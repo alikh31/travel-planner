@@ -9,6 +9,8 @@ global.fetch = jest.fn()
 const mockPush = jest.fn()
 const mockReplace = jest.fn()
 const mockSearchParams = new URLSearchParams()
+// Set default day for tests that expect activities to be visible
+mockSearchParams.set('day', 'day-1')
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
