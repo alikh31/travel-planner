@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MapPin } from 'lucide-react'
+import { Calendar, Compass } from 'lucide-react'
 import { getPlacePhoto } from '@/lib/googleMaps'
 
 interface Activity {
@@ -14,9 +14,10 @@ interface TravelCardImagesProps {
   activities: Activity[]
   destination: string
   itineraryId: string
+  totalActivities: number
 }
 
-export default function TravelCardImages({ activities, destination, itineraryId }: TravelCardImagesProps) {
+export default function TravelCardImages({ activities, destination, itineraryId, totalActivities }: TravelCardImagesProps) {
   const [images, setImages] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -43,8 +44,8 @@ export default function TravelCardImages({ activities, destination, itineraryId 
         }
       }
 
-      // Fallback to destination-based placeholder if no Google photos available
-      if (loadedImages.length === 0) {
+      // Fallback to destination-based placeholder if no Google photos available and there are activities
+      if (loadedImages.length === 0 && totalActivities > 0) {
         const destinationQuery = encodeURIComponent(destination.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ','))
         loadedImages.push(`https://source.unsplash.com/400x300/?travel,${destinationQuery}&sig=${itineraryId.length}`)
       }
@@ -54,7 +55,7 @@ export default function TravelCardImages({ activities, destination, itineraryId 
     }
 
     loadImages()
-  }, [activities, destination, itineraryId])
+  }, [activities, destination, itineraryId, totalActivities])
 
   if (isLoading) {
     return (
@@ -64,15 +65,31 @@ export default function TravelCardImages({ activities, destination, itineraryId 
     )
   }
 
+  // Show different placeholders based on the situation
   if (images.length === 0) {
-    return (
-      <div className="h-48 bg-stone-gray-100 relative overflow-hidden flex items-center justify-center">
-        <div className="text-stone-gray-400 text-center">
-          <MapPin className="h-8 w-8 mx-auto mb-2" />
-          <p className="text-sm">No images available</p>
+    if (totalActivities === 0) {
+      // No activities at all - show planning placeholder
+      return (
+        <div className="h-48 bg-gradient-to-br from-stone-gray-50 to-stone-gray-100 relative overflow-hidden flex items-center justify-center">
+          <div className="text-stone-gray-400 text-center">
+            <Calendar className="h-12 w-12 mx-auto mb-3 text-stone-gray-300" />
+            <p className="text-sm font-medium mb-1">Planning in Progress</p>
+            <p className="text-xs text-stone-gray-400">No activities added yet</p>
+          </div>
         </div>
-      </div>
-    )
+      )
+    } else {
+      // Has activities but no location data - show location placeholder
+      return (
+        <div className="h-48 bg-gradient-to-br from-ocean-blue-50 to-sky-aqua-50 relative overflow-hidden flex items-center justify-center">
+          <div className="text-ocean-blue-400 text-center">
+            <Compass className="h-12 w-12 mx-auto mb-3 text-ocean-blue-300" />
+            <p className="text-sm font-medium mb-1">{destination}</p>
+            <p className="text-xs text-ocean-blue-400">{totalActivities} activit{totalActivities !== 1 ? 'ies' : 'y'} planned</p>
+          </div>
+        </div>
+      )
+    }
   }
 
   return (

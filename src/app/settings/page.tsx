@@ -21,8 +21,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   homeCityPlaceId: '',
   homeCityLat: null,
   homeCityLng: null,
-  preferredStartTime: '09:00', // 9:00 AM - Good start for most activities
-  preferredEndTime: '18:00', // 6:00 PM - Time to head back to accommodation
+  preferredStartTime: '09:00',
+  preferredEndTime: '21:00',
 }
 
 export default function SettingsPage() {
@@ -210,15 +210,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Default Values Info */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-blue-900 mb-2">Default Values</h3>
-          <ul className="text-xs text-blue-700 space-y-1">
-            <li><strong>Start of Day:</strong> 9:00 AM - Good time to begin daily activities</li>
-            <li><strong>Return Time:</strong> 6:00 PM - Allows time for dinner and evening relaxation</li>
-            <li><strong>Home City:</strong> Used for travel time calculations and nearby destination suggestions</li>
-          </ul>
-        </div>
       </main>
     </div>
   )

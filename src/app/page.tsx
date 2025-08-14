@@ -233,6 +233,7 @@ export default function Home() {
                               activities={allActivities}
                               destination={itinerary.destination}
                               itineraryId={itinerary.id}
+                              totalActivities={totalActivities}
                             />
                             
                             {/* Content Section */}
