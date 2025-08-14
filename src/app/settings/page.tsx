@@ -80,8 +80,8 @@ export default function SettingsPage() {
       ...prev,
       homeCity: location,
       homeCityPlaceId: placeData?.place_id || '',
-      homeCityLat: placeData?.geometry?.location?.lat() || null,
-      homeCityLng: placeData?.geometry?.location?.lng() || null,
+      homeCityLat: placeData?.geometry?.location?.lat || null,
+      homeCityLng: placeData?.geometry?.location?.lng || null,
     }))
   }
 

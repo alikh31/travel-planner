@@ -29,8 +29,8 @@ jest.mock('@/components/LocationSearch', () => {
           place_id: 'mock-place-id', 
           geometry: { 
             location: { 
-              lat: () => 40.7128, 
-              lng: () => -74.0060 
+              lat: 40.7128, 
+              lng: -74.0060 
             } 
           } 
         })}
