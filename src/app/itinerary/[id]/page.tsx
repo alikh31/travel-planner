@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, memo, use } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Calendar, MapPin, ThumbsUp, ThumbsDown, MessageSquare, Edit3, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -305,11 +305,12 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   // Handle both Promise and direct object for testing compatibility
   const resolvedParams = params instanceof Promise ? use(params) : params
   const router = useRouter()
+  const searchParams = useSearchParams()
   
   // State
   const [itinerary, setItinerary] = useState<any>(null)
   const [accommodations, setAccommodations] = useState<any[]>([])
-  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [selectedDay, setSelectedDay] = useState<string | null>(searchParams.get('day'))
   const [showAddActivity, setShowAddActivity] = useState(false)
   const [showComments, setShowComments] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
@@ -358,6 +359,25 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   }, [selectedDayData?.activities?.map((a: any) => 
     `${a.id}-${a.title}-${a.location}-${a.locationPlaceId}-${a.locationLat}-${a.locationLng}-${a.startTime}-${a.duration}`
   ).join(',')]) // Only update when location-relevant data changes
+
+  // URL management function
+  const updateSelectedDay = useCallback((dayId: string | null) => {
+    setSelectedDay(dayId)
+    
+    // Update URL
+    const newSearchParams = new URLSearchParams(searchParams.toString())
+    if (dayId) {
+      newSearchParams.set('day', dayId)
+    } else {
+      newSearchParams.delete('day')
+    }
+    
+    // Use router.replace with just the search params
+    const newUrl = newSearchParams.toString() ? `?${newSearchParams.toString()}` : ''
+    if (typeof window !== 'undefined') {
+      router.replace(`${window.location.pathname}${newUrl}`, { scroll: false })
+    }
+  }, [searchParams, router])
 
   const isAdmin = useMemo(() => {
     if (!session?.user?.id || !itinerary) return false
@@ -494,22 +514,24 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
             setItinerary(newData)
             // For background updates, preserve the selected day if it still exists
             // Only set to first day if no day is currently selected or selected day no longer exists
-            setSelectedDay(prevSelectedDay => {
-              if (prevSelectedDay && newData.days.some((day: any) => day.id === prevSelectedDay)) {
-                return prevSelectedDay // Keep current selection if it still exists
-              }
-              return newData.days.length > 0 ? newData.days[0].id : null
-            })
+            const currentSelectedDay = selectedDay
+            if (currentSelectedDay && newData.days.some((day: any) => day.id === currentSelectedDay)) {
+              // Keep current selection if it still exists - no URL update needed
+            } else {
+              const newSelectedDay = newData.days.length > 0 ? newData.days[0].id : null
+              updateSelectedDay(newSelectedDay)
+            }
           }
         } else {
           setItinerary(newData)
           // For non-background updates, preserve selected day or set to first day
-          setSelectedDay(prevSelectedDay => {
-            if (prevSelectedDay && newData.days.some((day: any) => day.id === prevSelectedDay)) {
-              return prevSelectedDay // Keep current selection if it still exists
-            }
-            return newData.days.length > 0 ? newData.days[0].id : null
-          })
+          const currentSelectedDay = selectedDay
+          if (currentSelectedDay && newData.days.some((day: any) => day.id === currentSelectedDay)) {
+            // Keep current selection if it still exists - no URL update needed
+          } else {
+            const newSelectedDay = newData.days.length > 0 ? newData.days[0].id : null
+            updateSelectedDay(newSelectedDay)
+          }
         }
       } else if (response.status === 401) {
         router.push('/login')
@@ -552,6 +574,14 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       loadAccommodations(resolvedParams.id as string)
     }
   }, [resolvedParams.id]) // Only depend on resolvedParams.id
+
+  // Handle URL parameter changes (browser navigation)
+  useEffect(() => {
+    const dayFromUrl = searchParams.get('day')
+    if (dayFromUrl !== selectedDay) {
+      setSelectedDay(dayFromUrl)
+    }
+  }, [searchParams, selectedDay])
 
   // Polling effect to refresh data every 5 seconds
   useEffect(() => {
@@ -938,7 +968,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
             <DaysAndActivities
               itinerary={itinerary}
               selectedDay={selectedDay}
-              setSelectedDay={setSelectedDay}
+              setSelectedDay={updateSelectedDay}
               selectedDayData={selectedDayData}
               setShowAddActivity={setShowAddActivity}
               setShowMap={setShowMap}

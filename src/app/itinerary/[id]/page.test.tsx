@@ -5,6 +5,19 @@ import ItineraryPage from './page'
 // Mock fetch
 global.fetch = jest.fn()
 
+// Mock Next.js navigation
+const mockPush = jest.fn()
+const mockReplace = jest.fn()
+const mockSearchParams = new URLSearchParams()
+
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: mockReplace,
+  }),
+  useSearchParams: () => mockSearchParams,
+}))
+
 // Mock the useSession hook
 const mockUseSession = useSession as jest.MockedFunction<typeof useSession>
 
