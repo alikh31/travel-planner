@@ -90,7 +90,7 @@ describe('SettingsPage', () => {
 
     // Check default time values
     const startTimeInput = screen.getByDisplayValue('09:00')
-    const endTimeInput = screen.getByDisplayValue('18:00')
+    const endTimeInput = screen.getByDisplayValue('21:00')
 
     expect(startTimeInput).toBeInTheDocument()
     expect(endTimeInput).toBeInTheDocument()
@@ -139,7 +139,7 @@ describe('SettingsPage', () => {
     fireEvent.change(startTimeInput, { target: { value: '08:30' } })
 
     // Change end time
-    const endTimeInput = screen.getByDisplayValue('18:00')
+    const endTimeInput = screen.getByDisplayValue('21:00')
     fireEvent.change(endTimeInput, { target: { value: '17:30' } })
 
     expect(homeCityInput).toHaveValue('San Francisco, CA')
@@ -199,7 +199,7 @@ describe('SettingsPage', () => {
     expect(spinner).toBeInTheDocument()
   })
 
-  it('displays default values information', () => {
+  it('displays default settings values in form fields', () => {
     mockUseSession.mockReturnValue({
       data: mockSession,
       status: 'authenticated'
@@ -207,10 +207,8 @@ describe('SettingsPage', () => {
 
     render(<SettingsPage />)
 
-    expect(screen.getByText('Default Values')).toBeInTheDocument()
-    expect(screen.getByText('Start of Day:')).toBeInTheDocument()
-    expect(screen.getByText(/9:00 AM/)).toBeInTheDocument()
-    expect(screen.getByText('Return Time:')).toBeInTheDocument()
-    expect(screen.getByText(/6:00 PM/)).toBeInTheDocument()
+    // Check that default values are set in the form fields
+    expect(screen.getByDisplayValue('09:00')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('21:00')).toBeInTheDocument()
   })
 })

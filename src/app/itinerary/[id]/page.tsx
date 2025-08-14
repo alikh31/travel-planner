@@ -13,6 +13,7 @@ import TripHeader from '@/components/TripHeader'
 import DaysAndActivities from '@/components/DaysAndActivities'
 import MapSection from '@/components/MapSection'
 import AddActivityModal from '@/components/AddActivityModal'
+import EditActivityModal from '@/components/EditActivityModal'
 import { getPlacePhoto } from '@/lib/googleMaps'
 
 // Helper functions
@@ -44,8 +45,8 @@ interface Activity {
   description?: string
   location?: string
   locationPlaceId?: string
-  locationLat?: number
-  locationLng?: number
+  locationLat?: number | null
+  locationLng?: number | null
   startTime?: string
   duration?: number
   cost?: number
@@ -835,6 +836,50 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     }
   }, [selectedDay, newActivity, resolvedParams.id, session?.user?.id, fetchItinerary])
 
+  const handleUpdateActivity = useCallback(async (updatedActivity: Activity) => {
+    if (!session?.user?.id) {
+      alert('You must be logged in to update activities.')
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/activities/${updatedActivity.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: updatedActivity.title,
+          description: updatedActivity.description,
+          location: updatedActivity.location,
+          locationPlaceId: updatedActivity.locationPlaceId,
+          locationLat: updatedActivity.locationLat,
+          locationLng: updatedActivity.locationLng,
+          startTime: updatedActivity.startTime,
+          duration: updatedActivity.duration,
+          cost: updatedActivity.cost,
+          isGroupActivity: updatedActivity.isGroupActivity
+        })
+      })
+
+      if (response.ok) {
+        setEditingActivity(null)
+        await fetchItinerary(resolvedParams.id as string, true)
+      } else {
+        const errorData = await response.json()
+        if (response.status === 401) {
+          alert('You are not authorized to update activities. Please log in again.')
+        } else if (response.status === 403) {
+          alert('You do not have permission to update activities in this itinerary.')
+        } else {
+          alert(errorData.error || 'Failed to update activity. Please try again.')
+        }
+        console.error('Error updating activity:', errorData)
+      }
+    } catch (error) {
+      console.error('Error updating activity:', error)
+      alert('Failed to update activity due to a network error. Please check your connection and try again.')
+    }
+  }, [session?.user?.id, resolvedParams.id, fetchItinerary])
+
   const updateMemberRole = useCallback(async (userId: string, role: 'admin' | 'member') => {
     if (!session?.user?.id || !isAdmin) {
       alert('You do not have permission to update member roles.')
@@ -1021,6 +1066,14 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
         newActivity={newActivity}
         setNewActivity={setNewActivity}
         onSubmit={handleAddActivity}
+      />
+
+      {/* Edit Activity Modal */}
+      <EditActivityModal
+        isOpen={!!editingActivity}
+        onClose={() => setEditingActivity(null)}
+        activity={editingActivity}
+        onSubmit={handleUpdateActivity}
       />
 
 
