@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import TimeGap from '../../components/TimeGap'
+import Commute from '../../components/Commute'
 import ActivitiesMap from '../../components/ActivitiesMap'
 
 // Mock Google Maps module
@@ -146,18 +147,15 @@ describe('Transport Mode Integration', () => {
     window.dispatchEvent = jest.fn()
   })
 
-  it('updates map routes when transport mode changes in TimeGap', async () => {
+  it('updates map routes when transport mode changes in Commute', async () => {
     const user = userEvent.setup()
     
     // Render both components
     render(
       <div>
-        <TimeGap
-          startTime="10:00"
-          endTime="12:00"
+        <Commute
           fromLocation="Art Museum, New York"
           toLocation="Central Park, New York"
-          onAddActivity={jest.fn()}
         />
         <ActivitiesMap activities={mockActivities} />
       </div>
@@ -171,7 +169,7 @@ describe('Transport Mode Integration', () => {
     // Clear mocks to track transport change
     jest.clearAllMocks()
 
-    // Find and click the driving transport button in TimeGap
+    // Find and click the driving transport button in Commute
     const driveButton = screen.getByTitle('Drive')
     await user.click(driveButton)
 
@@ -252,12 +250,9 @@ describe('Transport Mode Integration', () => {
     
     render(
       <div>
-        <TimeGap
-          startTime="10:00"
-          endTime="12:00"
+        <Commute
           fromLocation="Art Museum, New York"
           toLocation="Central Park, New York"
-          onAddActivity={jest.fn()}
         />
         <ActivitiesMap activities={mockActivities} />
       </div>
@@ -293,12 +288,9 @@ describe('Transport Mode Integration', () => {
     const user = userEvent.setup()
     
     render(
-      <TimeGap
-        startTime="10:00"
-        endTime="12:00"
+      <Commute
         fromLocation="Art Museum, New York"
         toLocation="Central Park, New York"
-        onAddActivity={jest.fn()}
       />
     )
 
@@ -322,12 +314,9 @@ describe('Transport Mode Integration', () => {
     
     render(
       <div>
-        <TimeGap
-          startTime="08:00"
-          endTime="10:00"
+        <Commute
           fromLocation="Test Hotel, New York"
           toLocation="Art Museum, New York"
-          onAddActivity={jest.fn()}
           isAccommodationCommute={true}
           commuteType="start"
         />
@@ -384,12 +373,9 @@ describe('Transport Mode Integration', () => {
     
     render(
       <div>
-        <TimeGap
-          startTime="10:00"
-          endTime="12:00"
+        <Commute
           fromLocation="Art Museum, New York"
           toLocation="Central Park, New York"
-          onAddActivity={jest.fn()}
         />
         <ActivitiesMap activities={mockActivities} />
       </div>
@@ -400,7 +386,7 @@ describe('Transport Mode Integration', () => {
       expect(screen.getByText('Failed to load map')).toBeInTheDocument()
     })
 
-    // TimeGap should still work for transport selection
+    // Commute should still work for transport selection
     const driveButton = screen.getByTitle('Drive')
     await user.click(driveButton)
 

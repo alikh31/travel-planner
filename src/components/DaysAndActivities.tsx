@@ -3,6 +3,7 @@
 import { format } from 'date-fns'
 import { Calendar, Plus, Map, Hotel, AlertCircle, AlertTriangle } from 'lucide-react'
 import AccommodationCard from './AccommodationCard'
+import Commute from './Commute'
 
 interface DaysAndActivitiesProps {
   itinerary: any
@@ -189,17 +190,12 @@ export default function DaysAndActivities({
               return (
                 <div key={activity.id}>
                   {/* Accommodation to First Activity Commute */}
-                  {isFirstActivity && accommodation && activity.startTime && (
-                    <TimeGap
-                      startTime={getTimeWithOffset(activity.startTime, -30)}
-                      endTime={activity.startTime}
+                  {isFirstActivity && accommodation && activity.location && (
+                    <Commute
                       fromLocation={accommodation.location}
                       toLocation={activity.location}
                       isAccommodationCommute={true}
                       commuteType="start"
-                      onAddActivity={() => {
-                        setShowAddActivity(true)
-                      }}
                     />
                   )}
                   
@@ -219,31 +215,33 @@ export default function DaysAndActivities({
                     isAdmin={isAdmin}
                   />
                   
-                  {/* Show TimeGap between activities */}
+                  {/* Show Commute and TimeGap between activities */}
                   {index < selectedDayData.activities.length - 1 && (
-                    <TimeGap
-                      startTime={getEndTime(activity.startTime, activity.duration) || undefined}
-                      endTime={selectedDayData.activities[index + 1].startTime || undefined}
-                      fromLocation={activity.location || undefined}
-                      toLocation={selectedDayData.activities[index + 1].location || undefined}
-                      onAddActivity={() => {
-                        setShowAddActivity(true)
-                      }}
-                    />
+                    <>
+                      {/* Always show commute between activities */}
+                      <Commute
+                        fromLocation={activity.location || undefined}
+                        toLocation={selectedDayData.activities[index + 1].location || undefined}
+                      />
+                      
+                      {/* Show TimeGap only if there's a significant time gap */}
+                      <TimeGap
+                        startTime={getEndTime(activity.startTime, activity.duration) || undefined}
+                        endTime={selectedDayData.activities[index + 1].startTime || undefined}
+                        onAddActivity={() => {
+                          setShowAddActivity(true)
+                        }}
+                      />
+                    </>
                   )}
                   
                   {/* Last Activity to Accommodation Commute */}
-                  {isLastActivity && accommodation && activity.startTime && (
-                    <TimeGap
-                      startTime={getEndTime(activity.startTime, activity.duration) || activity.startTime}
-                      endTime={getTimeWithOffset(getEndTime(activity.startTime, activity.duration) || activity.startTime, 30)}
+                  {isLastActivity && accommodation && activity.location && (
+                    <Commute
                       fromLocation={activity.location}
                       toLocation={accommodation.location}
                       isAccommodationCommute={true}
                       commuteType="end"
-                      onAddActivity={() => {
-                        setShowAddActivity(true)
-                      }}
                     />
                   )}
                 </div>
