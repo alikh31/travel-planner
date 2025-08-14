@@ -65,7 +65,7 @@ export default function DaysAndActivities({
 
   // Auto-scroll to selected day in mobile slider
   useEffect(() => {
-    if (scrollRef.current && selectedDay) {
+    if (scrollRef.current && selectedDay && itinerary?.days) {
       const selectedIndex = itinerary.days.findIndex((d: any) => d.id === selectedDay)
       if (selectedIndex !== -1) {
         const button = scrollRef.current.children[selectedIndex] as HTMLElement
@@ -78,7 +78,7 @@ export default function DaysAndActivities({
         }
       }
     }
-  }, [selectedDay, itinerary.days])
+  }, [selectedDay]) // Only depend on selectedDay changes, not itinerary.days
 
   const DayButton = ({ day, index }: { day: any, index: number }) => {
     const accommodationStatus = getAccommodationStatusForDate(day.date)
