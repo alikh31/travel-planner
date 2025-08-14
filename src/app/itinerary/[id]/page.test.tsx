@@ -16,6 +16,7 @@ jest.mock('next/navigation', () => ({
     replace: mockReplace,
   }),
   useSearchParams: () => mockSearchParams,
+  usePathname: () => '/itinerary/test-id',
 }))
 
 // Mock the useSession hook
