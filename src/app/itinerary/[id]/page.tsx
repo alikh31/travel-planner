@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, memo, use } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo, use, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -348,6 +348,9 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   const [isDeletingActivity, setIsDeletingActivity] = useState(false)
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   
+  // Track when we're programmatically updating URL to prevent double state updates
+  const isUpdatingUrlRef = useRef(false)
+  
   // New Activity Form State
   const [newActivity, setNewActivity] = useState({
     title: '',
@@ -407,6 +410,9 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
 
   // URL management function
   const updateSelectedDay = useCallback((dayId: string | null) => {
+    // Set flag to prevent double state update from URL change effect
+    isUpdatingUrlRef.current = true
+    
     setSelectedDay(dayId)
     
     // Update URL
@@ -422,6 +428,11 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     if (typeof window !== 'undefined') {
       router.replace(`${window.location.pathname}${newUrl}`, { scroll: false })
     }
+    
+    // Reset flag after a brief delay to allow URL update to propagate
+    setTimeout(() => {
+      isUpdatingUrlRef.current = false
+    }, 50)
   }, [searchParams, router])
 
   const isAdmin = useMemo(() => {
@@ -623,8 +634,8 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   useEffect(() => {
     const dayFromUrl = searchParams.get('day')
     // Only update selectedDay from URL if there's an actual change
-    // and prevent unnecessary updates during background polling
-    if (dayFromUrl !== selectedDay) {
+    // and we're not currently programmatically updating the URL ourselves
+    if (dayFromUrl !== selectedDay && !isUpdatingUrlRef.current) {
       setSelectedDay(dayFromUrl)
     }
   }, [searchParams, selectedDay])
