@@ -127,29 +127,31 @@ const ActivityItem = memo(({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 flex-1 min-w-0">
               {activityNumber && (
                 <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
                   {activityNumber}
                 </div>
               )}
-              <h4 className="text-lg font-semibold text-gray-900">{activity.title}</h4>
+              <h4 className="text-lg font-semibold text-gray-900 truncate">{activity.title}</h4>
             </div>
             {canEdit && (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1 md:space-x-2 flex-shrink-0 ml-2">
                 <button
                   onClick={() => onEditActivity(activity)}
-                  className="text-stone-gray-400 hover:text-stone-gray-600"
+                  className="p-2 text-stone-gray-400 hover:text-stone-gray-600 hover:bg-stone-gray-50 rounded-lg touch-manipulation transition-colors md:p-1"
                   title="Edit activity"
+                  aria-label="Edit activity"
                 >
-                  <Edit3 className="h-4 w-4" />
+                  <Edit3 className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
                 <button
                   onClick={() => onDeleteActivity(activity.id)}
-                  className="text-red-400 hover:text-red-600"
+                  className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg touch-manipulation transition-colors md:p-1"
                   title="Delete activity"
+                  aria-label="Delete activity"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
               </div>
             )}
