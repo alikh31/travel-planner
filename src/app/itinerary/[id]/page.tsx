@@ -1058,6 +1058,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
           selectedDay={selectedDay || undefined}
           onClose={() => setShowMap(false)}
           isModal={true}
+          accommodationLocation={getAccommodationForDate(selectedDayData.date)?.location}
         />
       )}
 
