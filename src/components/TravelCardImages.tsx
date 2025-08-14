@@ -59,7 +59,7 @@ export default function TravelCardImages({ activities, destination, itineraryId,
 
   if (isLoading) {
     return (
-      <div className="h-48 bg-stone-gray-100 relative overflow-hidden animate-pulse">
+      <div className="h-64 bg-stone-gray-100 relative overflow-hidden animate-pulse">
         <div className="w-full h-full bg-stone-gray-200"></div>
       </div>
     )
@@ -70,7 +70,7 @@ export default function TravelCardImages({ activities, destination, itineraryId,
     if (totalActivities === 0) {
       // No activities at all - show planning placeholder
       return (
-        <div className="h-48 bg-gradient-to-br from-stone-gray-50 to-stone-gray-100 relative overflow-hidden flex items-center justify-center">
+        <div className="h-64 bg-gradient-to-br from-stone-gray-50 to-stone-gray-100 relative overflow-hidden flex items-center justify-center">
           <div className="text-stone-gray-400 text-center">
             <Calendar className="h-12 w-12 mx-auto mb-3 text-stone-gray-300" />
             <p className="text-sm font-medium mb-1">Planning in Progress</p>
@@ -81,7 +81,7 @@ export default function TravelCardImages({ activities, destination, itineraryId,
     } else {
       // Has activities but no location data - show location placeholder
       return (
-        <div className="h-48 bg-gradient-to-br from-ocean-blue-50 to-sky-aqua-50 relative overflow-hidden flex items-center justify-center">
+        <div className="h-64 bg-gradient-to-br from-ocean-blue-50 to-sky-aqua-50 relative overflow-hidden flex items-center justify-center">
           <div className="text-ocean-blue-400 text-center">
             <Compass className="h-12 w-12 mx-auto mb-3 text-ocean-blue-300" />
             <p className="text-sm font-medium mb-1">{destination}</p>
@@ -93,7 +93,7 @@ export default function TravelCardImages({ activities, destination, itineraryId,
   }
 
   return (
-    <div className="h-48 bg-stone-gray-100 relative overflow-hidden">
+    <div className="h-64 bg-stone-gray-100 relative overflow-hidden">
       {images.length === 1 ? (
         // Single image - full width
         <img
