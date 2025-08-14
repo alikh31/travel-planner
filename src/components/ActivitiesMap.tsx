@@ -130,16 +130,17 @@ const ActivitiesMap = memo(function ActivitiesMap({
           center: initialCenter,
           zoom: 13,
           mapTypeId: google.maps.MapTypeId.ROADMAP,
-        disableDefaultUI: true, // Remove all default controls
-        zoomControl: true, // Keep only zoom control
-        styles: [
-          {
-            featureType: "poi",
-            elementType: "labels",
-            stylers: [{ visibility: "off" }]
-          }
-        ]
-      })
+          disableDefaultUI: true, // Remove all default controls
+          zoomControl: true, // Keep only zoom control
+          gestureHandling: 'greedy', // Allow one-finger panning on mobile
+          styles: [
+            {
+              featureType: "poi",
+              elementType: "labels",
+              stylers: [{ visibility: "off" }]
+            }
+          ]
+        })
       } catch {
         setError('Failed to initialize map')
         setIsLoading(false)
