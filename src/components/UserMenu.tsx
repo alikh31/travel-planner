@@ -141,17 +141,23 @@ export default function UserMenu({ itineraryId }: UserMenuProps) {
                 </button>
               )}
             </Menu.Item>
-            <Menu.Item disabled>
-              {({ active }) => (
-                <button
-                  className={`${
-                    active ? 'bg-stone-gray-100' : ''
-                  } flex w-full items-center px-4 py-2 text-sm text-stone-gray-400 cursor-not-allowed`}
-                >
-                  <Settings className="mr-3 h-4 w-4 text-stone-gray-400" />
-                  Settings (Coming Soon)
-                </button>
-              )}
+            <Menu.Item>
+              {({ active }) => {
+                const isCurrentPage = pathname === '/settings'
+                return (
+                  <Link
+                    href="/settings"
+                    className={`${
+                      active ? 'bg-stone-gray-100' : ''
+                    } ${
+                      isCurrentPage ? 'bg-ocean-blue-50 text-ocean-blue-700' : 'text-stone-gray-700'
+                    } flex items-center px-4 py-2 text-sm`}
+                  >
+                    <Settings className={`mr-3 h-4 w-4 ${isCurrentPage ? 'text-ocean-blue-500' : 'text-stone-gray-400'}`} />
+                    Settings
+                  </Link>
+                )
+              }}
             </Menu.Item>
           </div>
 
