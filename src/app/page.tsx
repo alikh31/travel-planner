@@ -74,8 +74,8 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ocean-blue-600 mx-auto"></div>
+          <p className="mt-4 text-stone-gray-600">Loading...</p>
         </div>
       </div>
     )
@@ -83,32 +83,32 @@ export default function Home() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-ocean-blue-50 to-sky-aqua-100 flex items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
           <div className="mb-8">
-            <MapPin className="mx-auto h-16 w-16 text-blue-600 mb-4" />
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Travel Planner</h1>
-            <p className="text-gray-600">Plan your perfect trip together</p>
+            <MapPin className="mx-auto h-16 w-16 text-ocean-blue-600 mb-4" />
+            <h1 className="text-3xl font-bold text-stone-gray-900 mb-2">Travel Planner</h1>
+            <p className="text-stone-gray-600">Plan your perfect trip together</p>
           </div>
           
           <div className="space-y-4 mb-8">
-            <div className="flex items-center text-sm text-gray-600">
-              <Users className="h-5 w-5 mr-2 text-blue-500" />
+            <div className="flex items-center text-sm text-stone-gray-600">
+              <Users className="h-5 w-5 mr-2 text-forest-green-500" />
               Collaborate with friends and family
             </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <Calendar className="h-5 w-5 mr-2 text-blue-500" />
+            <div className="flex items-center text-sm text-stone-gray-600">
+              <Calendar className="h-5 w-5 mr-2 text-golden-sand-500" />
               Plan day-by-day itineraries
             </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <PlusCircle className="h-5 w-5 mr-2 text-blue-500" />
+            <div className="flex items-center text-sm text-stone-gray-600">
+              <PlusCircle className="h-5 w-5 mr-2 text-sky-aqua-500" />
               Vote on activities and suggestions
             </div>
           </div>
 
           <button
             onClick={() => signIn('google')}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+            className="w-full bg-sunset-coral-600 hover:bg-sunset-coral-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
           >
             Sign in with Google
           </button>
@@ -118,17 +118,17 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-cloud-white">
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <MapPin className="h-8 w-8 text-blue-600 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">Travel Planner</h1>
+              <MapPin className="h-8 w-8 text-ocean-blue-600 mr-3" />
+              <h1 className="text-2xl font-bold text-stone-gray-900">Travel Planner</h1>
             </div>
             
             <div className="flex items-center space-x-4">
-              <div className="flex items-center text-sm text-gray-600">
+              <div className="flex items-center text-sm text-stone-gray-600">
                 <img
                   src={session.user?.image || '/default-avatar.png'}
                   alt={session.user?.name || 'User'}
@@ -138,7 +138,7 @@ export default function Home() {
               </div>
               <button
                 onClick={() => signOut()}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="text-sm text-stone-gray-500 hover:text-stone-gray-700"
               >
                 Sign out
               </button>
@@ -151,13 +151,13 @@ export default function Home() {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">Your Travel Plans</h2>
-              <p className="text-gray-600">Create and manage your collaborative itineraries</p>
+              <h2 className="text-3xl font-bold text-stone-gray-900 mb-2">Your Travel Plans</h2>
+              <p className="text-stone-gray-600">Create and manage your collaborative itineraries</p>
             </div>
             
             <Link
               href="/itinerary/new"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-sunset-coral-600 hover:bg-sunset-coral-700 text-white font-medium rounded-lg transition-colors"
             >
               <PlusCircle className="h-5 w-5 mr-2" />
               New Itinerary

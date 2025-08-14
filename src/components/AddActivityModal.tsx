@@ -118,7 +118,7 @@ export default function AddActivityModal({
               id="isGroupActivity"
               checked={newActivity.isGroupActivity}
               onChange={(e) => setNewActivity(prev => ({ ...prev, isGroupActivity: e.target.checked }))}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-4 w-4 text-ocean-blue-600 focus:ring-ocean-blue-500 border-stone-gray-300 rounded"
             />
             <label htmlFor="isGroupActivity" className="ml-2 text-sm text-gray-700">
               Group activity (everyone participates)
@@ -135,7 +135,7 @@ export default function AddActivityModal({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-sunset-coral-600 hover:bg-sunset-coral-700 text-white rounded-lg transition-colors"
             >
               Add Activity
             </button>

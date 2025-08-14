@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { X } from 'lucide-react'
 import LocationSearch from './LocationSearch'
 
@@ -19,12 +19,40 @@ interface NewAccommodation {
   notes: string
 }
 
+interface Accommodation {
+  id: string
+  name: string
+  type: string
+  location: string
+  checkIn: string
+  checkOut: string
+  nights: number
+  guests: number
+  photoUrl?: string
+  amenities: string[]
+  notes?: string
+  order: number
+}
+
+interface Itinerary {
+  id: string
+  title: string
+  destination: string
+  startDate: string
+  endDate: string
+  members: { id: string }[]
+  days: { id: string, date: string }[]
+}
+
 interface AddAccommodationModalProps {
   isOpen: boolean
   onClose: () => void
   newAccommodation: NewAccommodation
   setNewAccommodation: (updater: (prev: NewAccommodation) => NewAccommodation) => void
   onSubmit: (e?: React.FormEvent) => void
+  itinerary: Itinerary | null
+  accommodations: Accommodation[]
+  editingAccommodation?: Accommodation | null
 }
 
 export default function AddAccommodationModal({
@@ -32,8 +60,68 @@ export default function AddAccommodationModal({
   onClose,
   newAccommodation,
   setNewAccommodation,
-  onSubmit
+  onSubmit,
+  itinerary,
+  accommodations,
+  editingAccommodation
 }: AddAccommodationModalProps) {
+  // Find the first day of the trip that has no accommodation
+  const findFirstDayWithoutAccommodation = useCallback((): string => {
+    if (!itinerary?.days) return ''
+    
+    // Create a set of dates that have accommodation
+    const accommodationDates = new Set(
+      accommodations.map(acc => acc.checkIn)
+    )
+    
+    // Find the first day without accommodation
+    for (const day of itinerary.days.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())) {
+      if (!accommodationDates.has(day.date)) {
+        return day.date
+      }
+    }
+    
+    // If all days have accommodation, return the start date
+    return itinerary.startDate
+  }, [itinerary, accommodations])
+
+  // Set default values when modal opens or populate with editing data
+  useEffect(() => {
+    if (isOpen) {
+      if (editingAccommodation) {
+        // Populate form with editing accommodation data
+        setNewAccommodation(prev => ({
+          ...prev,
+          name: editingAccommodation.name,
+          type: editingAccommodation.type as any,
+          location: editingAccommodation.location,
+          locationPlaceId: '', // We don't store these in the saved accommodation
+          locationLat: null,
+          locationLng: null,
+          photoUrl: editingAccommodation.photoUrl || '',
+          checkIn: editingAccommodation.checkIn,
+          nights: editingAccommodation.nights,
+          guests: editingAccommodation.guests,
+          amenities: editingAccommodation.amenities,
+          notes: editingAccommodation.notes || ''
+        }))
+      } else if (itinerary) {
+        // Set defaults for new accommodation
+        const defaultCheckIn = findFirstDayWithoutAccommodation()
+        const defaultGuests = itinerary.members?.length || 1
+        
+        // Only set defaults if current values are empty/default
+        if (!newAccommodation.checkIn || newAccommodation.guests === 1) {
+          setNewAccommodation(prev => ({
+            ...prev,
+            checkIn: defaultCheckIn,
+            guests: defaultGuests
+          }))
+        }
+      }
+    }
+  }, [isOpen, itinerary, editingAccommodation, findFirstDayWithoutAccommodation, newAccommodation.checkIn, newAccommodation.guests, setNewAccommodation])
+
   const fetchPlacePhoto = useCallback(async (placeId: string): Promise<string | null> => {
     if (!placeId) return null
     
@@ -99,10 +187,13 @@ export default function AddAccommodationModal({
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
         <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 rounded-t-lg">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Add Accommodation</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {editingAccommodation ? 'Edit Accommodation' : 'Add Accommodation'}
+            </h3>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
+              aria-label="Close modal"
             >
               <X className="h-5 w-5" />
             </button>
@@ -259,7 +350,7 @@ export default function AddAccommodationModal({
               onClick={onSubmit}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
             >
-              Add Accommodation
+              {editingAccommodation ? 'Update Accommodation' : 'Add Accommodation'}
             </button>
           </div>
         </div>

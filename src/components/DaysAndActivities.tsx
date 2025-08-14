@@ -71,7 +71,7 @@ export default function DaysAndActivities({
                 onClick={() => setSelectedDay(day.id)}
                 className={`w-full text-left p-3 rounded-lg transition-colors ${
                   selectedDay === day.id
-                    ? 'bg-blue-100 text-blue-900 border border-blue-200'
+                    ? 'bg-ocean-blue-100 text-ocean-blue-900 border border-ocean-blue-200'
                     : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
                 }`}
               >
@@ -144,7 +144,7 @@ export default function DaysAndActivities({
             </button>
             <button
               onClick={() => setShowAddActivity(true)}
-              className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="flex items-center px-4 py-2 bg-sunset-coral-600 hover:bg-sunset-coral-700 text-white rounded-lg transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Activity
@@ -163,7 +163,7 @@ export default function DaysAndActivities({
             <p className="text-gray-500 mb-4">No activities planned for this day</p>
             <button
               onClick={() => setShowAddActivity(true)}
-              className="text-blue-600 hover:underline"
+              className="text-ocean-blue-600 hover:underline"
             >
               Add the first activity
             </button>

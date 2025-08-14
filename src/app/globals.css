@@ -1,11 +1,75 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Travel-themed color palette */
+  /* Primary Colors */
+  --ocean-blue: #0077B6;
+  --sunset-coral: #FF6B6B;
+  
+  /* Secondary Colors */
+  --golden-sand: #F4A261;
+  --forest-green: #2A9D8F;
+  
+  /* Neutral Base */
+  --cloud-white: #F9F9F9;
+  --stone-gray: #4B4B4B;
+  
+  /* Accent Pop */
+  --sky-aqua: #00B4D8;
+  
+  /* Legacy variables for compatibility */
+  --background: var(--cloud-white);
+  --foreground: var(--stone-gray);
 }
 
 @theme inline {
+  /* Travel color palette */
+  --color-ocean-blue: var(--ocean-blue);
+  --color-ocean-blue-50: #E6F3FF;
+  --color-ocean-blue-100: #CCE7FF;
+  --color-ocean-blue-500: var(--ocean-blue);
+  --color-ocean-blue-600: #005A94;
+  --color-ocean-blue-700: #004272;
+  
+  --color-sunset-coral: var(--sunset-coral);
+  --color-sunset-coral-50: #FFE6E6;
+  --color-sunset-coral-100: #FFCCCC;
+  --color-sunset-coral-500: var(--sunset-coral);
+  --color-sunset-coral-600: #FF5555;
+  --color-sunset-coral-700: #E55555;
+  
+  --color-golden-sand: var(--golden-sand);
+  --color-golden-sand-50: #FDF3E7;
+  --color-golden-sand-100: #FAE7CE;
+  --color-golden-sand-500: var(--golden-sand);
+  --color-golden-sand-600: #E6934C;
+  
+  --color-forest-green: var(--forest-green);
+  --color-forest-green-50: #E6F4F2;
+  --color-forest-green-100: #CCE8E4;
+  --color-forest-green-500: var(--forest-green);
+  --color-forest-green-600: #238A7A;
+  
+  --color-cloud-white: var(--cloud-white);
+  --color-stone-gray: var(--stone-gray);
+  --color-stone-gray-50: #F5F5F5;
+  --color-stone-gray-100: #E8E8E8;
+  --color-stone-gray-200: #D1D1D1;
+  --color-stone-gray-300: #B4B4B4;
+  --color-stone-gray-400: #999999;
+  --color-stone-gray-500: var(--stone-gray);
+  --color-stone-gray-600: #3D3D3D;
+  --color-stone-gray-700: #2F2F2F;
+  --color-stone-gray-800: #1F1F1F;
+  --color-stone-gray-900: #121212;
+  
+  --color-sky-aqua: var(--sky-aqua);
+  --color-sky-aqua-50: #E6F9FF;
+  --color-sky-aqua-100: #CCF3FF;
+  --color-sky-aqua-500: var(--sky-aqua);
+  --color-sky-aqua-600: #0099C2;
+  
+  /* Legacy compatibility */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -20,7 +84,7 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--cloud-white);
+  color: var(--stone-gray);
   font-family: Arial, Helvetica, sans-serif;
 }

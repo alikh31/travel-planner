@@ -102,22 +102,24 @@ const ActivitiesMap = memo(function ActivitiesMap({
                 const accommodationPos = results[0].geometry.location
                 bounds.extend(accommodationPos)
 
-                // Create accommodation marker (hotel icon)
+                // Create accommodation marker (plain number)
                 const accommodationMarker = new google.maps.Marker({
                   position: accommodationPos,
                   map,
                   title: 'Accommodation',
                   label: {
-                    text: '🏨',
-                    fontSize: '20px'
+                    text: '1',
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '12px'
                   },
                   icon: {
                     path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: '#10B981', // Green for accommodation
+                    fillColor: '#F4A261', // Golden Sand for accommodation
                     fillOpacity: 1,
-                    strokeColor: '#059669',
+                    strokeColor: '#E6934C',
                     strokeWeight: 2,
-                    scale: 20
+                    scale: 15
                   }
                 })
 
@@ -125,8 +127,8 @@ const ActivitiesMap = memo(function ActivitiesMap({
                 const accommodationInfoWindow = new google.maps.InfoWindow({
                   content: `
                     <div style="padding: 8px; max-width: 200px;">
-                      <h4 style="margin: 0 0 4px 0; font-weight: 600; color: #111827;">🏨 Accommodation</h4>
-                      <p style="margin: 0; font-size: 11px; color: #9CA3AF;">${accommodationLocation}</p>
+                      <h4 style="margin: 0 0 4px 0; font-weight: 600; color: #4B4B4B;">Accommodation</h4>
+                      <p style="margin: 0; font-size: 11px; color: #999999;">${accommodationLocation}</p>
                     </div>
                   `
                 })
@@ -173,9 +175,9 @@ const ActivitiesMap = memo(function ActivitiesMap({
             },
             icon: {
               path: google.maps.SymbolPath.CIRCLE,
-              fillColor: '#3B82F6',
+              fillColor: '#0077B6', // Ocean Blue for activities
               fillOpacity: 1,
-              strokeColor: '#1E40AF',
+              strokeColor: '#005A94',
               strokeWeight: 2,
               scale: 15
             }
@@ -185,10 +187,10 @@ const ActivitiesMap = memo(function ActivitiesMap({
           const infoWindow = new google.maps.InfoWindow({
             content: `
               <div style="padding: 8px; max-width: 200px;">
-                <h4 style="margin: 0 0 4px 0; font-weight: 600; color: #111827;">${activity.title}</h4>
-                ${activity.description ? `<p style="margin: 0 0 4px 0; font-size: 12px; color: #6B7280;">${activity.description}</p>` : ''}
-                <p style="margin: 0; font-size: 11px; color: #9CA3AF;">${activity.location}</p>
-                ${activity.startTime ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #6B7280;">Time: ${activity.startTime}</p>` : ''}
+                <h4 style="margin: 0 0 4px 0; font-weight: 600; color: #4B4B4B;">${activity.title}</h4>
+                ${activity.description ? `<p style="margin: 0 0 4px 0; font-size: 12px; color: #999999;">${activity.description}</p>` : ''}
+                <p style="margin: 0; font-size: 11px; color: #B4B4B4;">${activity.location}</p>
+                ${activity.startTime ? `<p style="margin: 4px 0 0 0; font-size: 11px; color: #999999;">Time: ${activity.startTime}</p>` : ''}
               </div>
             `
           })
@@ -491,11 +493,11 @@ const ActivitiesMap = memo(function ActivitiesMap({
       <div className={`${className} ${isModal ? 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50' : ''}`}>
         <div className={`bg-white rounded-lg ${isModal ? 'shadow-xl max-w-4xl w-full max-h-[90vh]' : 'h-full'} flex flex-col`}>
           {isModal && (
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Activities Map</h3>
+            <div className="flex items-center justify-between p-4 border-b border-stone-gray-200">
+              <h3 className="text-lg font-semibold text-stone-gray-900">Activities Map</h3>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-stone-gray-400 hover:text-stone-gray-600"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -503,8 +505,8 @@ const ActivitiesMap = memo(function ActivitiesMap({
           )}
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
-              <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No activities with location data to display on map</p>
+              <MapPin className="h-12 w-12 text-stone-gray-300 mx-auto mb-4" />
+              <p className="text-stone-gray-500">No activities with location data to display on map</p>
             </div>
           </div>
         </div>
@@ -516,11 +518,11 @@ const ActivitiesMap = memo(function ActivitiesMap({
     <div className={`${className} ${isModal ? 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50' : ''}`}>
       <div className={`bg-white rounded-lg ${isModal ? 'shadow-xl max-w-4xl w-full max-h-[90vh]' : 'h-full'} flex flex-col`}>
         {isModal && (
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Activities Map</h3>
+          <div className="flex items-center justify-between p-4 border-b border-stone-gray-200">
+            <h3 className="text-lg font-semibold text-stone-gray-900">Activities Map</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-stone-gray-400 hover:text-stone-gray-600"
             >
               <X className="h-5 w-5" />
             </button>
@@ -529,16 +531,16 @@ const ActivitiesMap = memo(function ActivitiesMap({
         
         <div className="flex-1 relative">
           {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-b-lg">
+            <div className="absolute inset-0 flex items-center justify-center bg-cloud-white rounded-b-lg">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <p className="text-sm text-gray-500">Loading map...</p>
+                <p className="text-sm text-stone-gray-500">Loading map...</p>
               </div>
             </div>
           )}
           
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-b-lg">
+            <div className="absolute inset-0 flex items-center justify-center bg-cloud-white rounded-b-lg">
               <div className="text-center">
                 <MapPin className="h-8 w-8 text-red-300 mx-auto mb-2" />
                 <p className="text-sm text-red-600">{error}</p>

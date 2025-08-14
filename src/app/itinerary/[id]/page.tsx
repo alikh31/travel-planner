@@ -1,21 +1,18 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, memo } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo, use } from 'react'
 import { useSession } from 'next-auth/react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Calendar, MapPin, ThumbsUp, ThumbsDown, MessageSquare, Edit3, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { generateTempId } from '@/lib/utils'
 import TimeGap from '@/components/TimeGap'
-import AccommodationPlanner from '@/components/AccommodationPlanner'
 import ActivitiesMap from '@/components/ActivitiesMap'
 import TripHeader from '@/components/TripHeader'
 import DaysAndActivities from '@/components/DaysAndActivities'
 import MapSection from '@/components/MapSection'
 import AddActivityModal from '@/components/AddActivityModal'
-import AddMemberModal from '@/components/AddMemberModal'
-import AddAccommodationModal from '@/components/AddAccommodationModal'
 import { getPlacePhoto } from '@/lib/googleMaps'
 
 // Helper functions
@@ -141,7 +138,7 @@ const ActivityItem = memo(({
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => onEditActivity(activity)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-stone-gray-400 hover:text-stone-gray-600"
                   title="Edit activity"
                 >
                   <Edit3 className="h-4 w-4" />
@@ -158,7 +155,7 @@ const ActivityItem = memo(({
           </div>
           
           {activity.description && (
-            <p className="text-gray-600 mb-3">{activity.description}</p>
+            <p className="text-stone-gray-600 mb-3">{activity.description}</p>
           )}
 
           {/* Location Image */}
@@ -177,8 +174,8 @@ const ActivityItem = memo(({
 
           {/* Loading state for image */}
           {imageLoading && activity.locationPlaceId && (
-            <div className="mb-3 w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="mb-3 w-full h-48 bg-stone-gray-200 rounded-lg flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ocean-blue-600"></div>
             </div>
           )}
           
@@ -303,9 +300,10 @@ const ActivityItem = memo(({
 
 ActivityItem.displayName = 'ActivityItem'
 
-export default function ItineraryDetail() {
+function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: string } }) {
   const { data: session } = useSession()
-  const params = useParams()
+  // Handle both Promise and direct object for testing compatibility
+  const resolvedParams = params instanceof Promise ? use(params) : params
   const router = useRouter()
   
   // State
@@ -313,14 +311,9 @@ export default function ItineraryDetail() {
   const [accommodations, setAccommodations] = useState<any[]>([])
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [showAddActivity, setShowAddActivity] = useState(false)
-  const [showAddMember, setShowAddMember] = useState(false)
-  const [showMembers, setShowMembers] = useState(false)
   const [showComments, setShowComments] = useState<string | null>(null)
   const [newComment, setNewComment] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
-  const [newMemberEmail, setNewMemberEmail] = useState('')
-  const [isAddingMember, setIsAddingMember] = useState(false)
-  const [showAddAccommodation, setShowAddAccommodation] = useState(false)
   const [showMap, setShowMap] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isDeletingActivity, setIsDeletingActivity] = useState(false)
@@ -340,21 +333,6 @@ export default function ItineraryDetail() {
     isGroupActivity: true
   })
 
-  // New Accommodation State
-  const [newAccommodation, setNewAccommodation] = useState({
-    name: '',
-    type: 'hotel' as 'hotel' | 'hostel' | 'apartment' | 'bnb' | 'resort' | 'other',
-    location: '',
-    locationPlaceId: '',
-    locationLat: null as number | null,
-    locationLng: null as number | null,
-    photoUrl: '',
-    checkIn: '',
-    nights: 1,
-    guests: 1,
-    amenities: [] as string[],
-    notes: ''
-  })
 
   // Computed values
   const selectedDayData = useMemo(() => {
@@ -569,25 +547,25 @@ export default function ItineraryDetail() {
   }, [])
 
   useEffect(() => {
-    if (params.id) {
-      fetchItinerary(params.id as string)
-      loadAccommodations(params.id as string)
+    if (resolvedParams.id) {
+      fetchItinerary(resolvedParams.id as string)
+      loadAccommodations(resolvedParams.id as string)
     }
-  }, [params.id]) // Only depend on params.id
+  }, [resolvedParams.id]) // Only depend on resolvedParams.id
 
   // Polling effect to refresh data every 5 seconds
   useEffect(() => {
-    if (!params.id || !session) return
+    if (!resolvedParams.id || !session) return
 
     const interval = setInterval(() => {
       // Only poll if user is not actively interacting with the page and tab is visible
-      if (!showAddActivity && !showAddMember && !isSubmittingComment && !isDeletingActivity && !document.hidden) {
-        fetchItinerary(params.id as string, true) // true = background update
+      if (!showAddActivity && !isSubmittingComment && !isDeletingActivity && !document.hidden) {
+        fetchItinerary(resolvedParams.id as string, true) // true = background update
       }
     }, 5000) // Poll every 5 seconds
 
     return () => clearInterval(interval)
-  }, [params.id, session?.user?.id, showAddActivity, showAddMember, isSubmittingComment, isDeletingActivity]) // Include all polling conditions
+  }, [resolvedParams.id, session?.user?.id, showAddActivity, isSubmittingComment, isDeletingActivity]) // Include all polling conditions
 
   // Event handlers
   const handleVote = useCallback(async (activityId: string, type: 'up' | 'down') => {
@@ -642,17 +620,17 @@ export default function ItineraryDetail() {
 
       if (!response.ok) {
         // Revert optimistic update on error
-        await fetchItinerary(params.id as string, true)
+        await fetchItinerary(resolvedParams.id as string, true)
         const error = await response.json()
         console.error('Error voting:', error)
       }
       // Don't fetch on success - the optimistic update is already applied
     } catch (error) {
       // Revert optimistic update on error
-      await fetchItinerary(params.id as string, true)
+      await fetchItinerary(resolvedParams.id as string, true)
       console.error('Error voting:', error)
     }
-  }, [session?.user?.id, params.id, itinerary, fetchItinerary])
+  }, [session?.user?.id, resolvedParams.id, itinerary, fetchItinerary])
 
   const handleToggleComments = useCallback((activityId: string) => {
     setShowComments(showComments === activityId ? null : activityId)
@@ -707,7 +685,7 @@ export default function ItineraryDetail() {
       if (!response.ok) {
         // Revert optimistic update and restore comment text on error
         setNewComment(commentContent)
-        await fetchItinerary(params.id as string, true)
+        await fetchItinerary(resolvedParams.id as string, true)
         const error = await response.json()
         alert(error.error || 'Failed to add comment. Please try again.')
       }
@@ -715,13 +693,13 @@ export default function ItineraryDetail() {
     } catch (error) {
       // Revert optimistic update and restore comment text on error
       setNewComment(commentContent)
-      await fetchItinerary(params.id as string, true)
+      await fetchItinerary(resolvedParams.id as string, true)
       console.error('Error adding comment:', error)
       alert('Failed to add comment. Please try again.')
     } finally {
       setIsSubmittingComment(false)
     }
-  }, [newComment, session?.user?.id, params.id, itinerary, fetchItinerary])
+  }, [newComment, session?.user?.id, resolvedParams.id, itinerary, fetchItinerary])
 
   const handleDeleteActivity = useCallback(async (activityId: string) => {
     if (!confirm('Are you sure you want to delete this activity?')) return
@@ -749,20 +727,20 @@ export default function ItineraryDetail() {
 
       if (!response.ok) {
         // Revert optimistic update on error
-        await fetchItinerary(params.id as string, true)
+        await fetchItinerary(resolvedParams.id as string, true)
         const error = await response.json()
         alert(error.error || 'Failed to delete activity. Please try again.')
       }
       // Don't fetch on success - optimistic update is already applied
     } catch (error) {
       // Revert optimistic update on error
-      await fetchItinerary(params.id as string, true)
+      await fetchItinerary(resolvedParams.id as string, true)
       console.error('Error deleting activity:', error)
       alert('Failed to delete activity. Please try again.')
     } finally {
       setIsDeletingActivity(false)
     }
-  }, [session?.user?.id, params.id, itinerary, fetchItinerary])
+  }, [session?.user?.id, resolvedParams.id, itinerary, fetchItinerary])
 
   const handleAddActivity = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
@@ -809,7 +787,7 @@ export default function ItineraryDetail() {
           cost: '',
           isGroupActivity: true
         })
-        await fetchItinerary(params.id as string, true)
+        await fetchItinerary(resolvedParams.id as string, true)
       } else {
         const errorData = await response.json()
         if (response.status === 401) {
@@ -825,7 +803,7 @@ export default function ItineraryDetail() {
       console.error('Error adding activity:', error)
       alert('Failed to add activity due to a network error. Please check your connection and try again.')
     }
-  }, [selectedDay, newActivity, params.id, session?.user?.id, fetchItinerary])
+  }, [selectedDay, newActivity, resolvedParams.id, session?.user?.id, fetchItinerary])
 
   const updateMemberRole = useCallback(async (userId: string, role: 'admin' | 'member') => {
     if (!session?.user?.id || !isAdmin) {
@@ -834,14 +812,14 @@ export default function ItineraryDetail() {
     }
 
     try {
-      const response = await fetch(`/api/itineraries/${params.id}/members`, {
+      const response = await fetch(`/api/itineraries/${resolvedParams.id}/members`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, role })
       })
 
       if (response.ok) {
-        await fetchItinerary(params.id as string, true)
+        await fetchItinerary(resolvedParams.id as string, true)
       } else {
         const errorData = await response.json()
         if (response.status === 401) {
@@ -857,7 +835,7 @@ export default function ItineraryDetail() {
       console.error('Error updating member role:', error)
       alert('Failed to update member role due to a network error. Please try again.')
     }
-  }, [params.id, session?.user?.id, isAdmin, fetchItinerary])
+  }, [resolvedParams.id, session?.user?.id, isAdmin, fetchItinerary])
 
   const removeMember = useCallback(async (userId: string) => {
     if (!session?.user?.id || !isAdmin) {
@@ -868,12 +846,12 @@ export default function ItineraryDetail() {
     if (!confirm('Are you sure you want to remove this member? They will lose access to this itinerary.')) return
 
     try {
-      const response = await fetch(`/api/itineraries/${params.id}/members?userId=${userId}`, {
+      const response = await fetch(`/api/itineraries/${resolvedParams.id}/members?userId=${userId}`, {
         method: 'DELETE'
       })
 
       if (response.ok) {
-        await fetchItinerary(params.id as string, true)
+        await fetchItinerary(resolvedParams.id as string, true)
       } else {
         const errorData = await response.json()
         if (response.status === 401) {
@@ -889,113 +867,18 @@ export default function ItineraryDetail() {
       console.error('Error removing member:', error)
       alert('Failed to remove member due to a network error. Please try again.')
     }
-  }, [params.id, session?.user?.id, isAdmin, fetchItinerary])
+  }, [resolvedParams.id, session?.user?.id, isAdmin, fetchItinerary])
 
-  // Helper function to toggle amenities
 
-  // Accommodation handlers
-  const handleAddAccommodation = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    if (!newAccommodation.name.trim() || !newAccommodation.location.trim()) {
-      alert('Please enter accommodation name and location')
-      return
-    }
 
-    try {
-      const accommodation = {
-        ...newAccommodation,
-        id: generateTempId('accommodation')
-      }
-
-      // Save to localStorage (same logic as AccommodationPlanner)
-      const savedAccommodations = localStorage.getItem(`accommodations-${params.id}`)
-      const existingAccommodations = savedAccommodations ? JSON.parse(savedAccommodations) : []
-      const updatedAccommodations = [...existingAccommodations, accommodation]
-      
-      localStorage.setItem(`accommodations-${params.id}`, JSON.stringify(updatedAccommodations))
-      
-      // Reset form
-      const memberCount = itinerary?.members?.length || 1
-      setNewAccommodation({
-        name: '',
-        type: 'hotel',
-        location: '',
-        locationPlaceId: '',
-        locationLat: null,
-        locationLng: null,
-        photoUrl: '',
-        checkIn: '',
-        nights: 1,
-        guests: memberCount,
-        amenities: [],
-        notes: ''
-      })
-      
-      setShowAddAccommodation(false)
-      
-      // Refresh accommodations
-      loadAccommodations(params.id as string)
-    } catch (error) {
-      console.error('Error adding accommodation:', error)
-      alert('Failed to add accommodation. Please try again.')
-    }
-  }
-
-  // Modal handlers
-  const handleAddMemberSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newMemberEmail.trim()) return
-
-    setIsAddingMember(true)
-    try {
-      const response = await fetch(`/api/itineraries/${params.id}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newMemberEmail.trim() })
-      })
-
-      if (response.ok) {
-        setShowAddMember(false)
-        setNewMemberEmail('')
-        await fetchItinerary(params.id as string, true)
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to add member')
-      }
-    } catch (error) {
-      console.error('Error adding member:', error)
-      alert('Failed to add member')
-    } finally {
-      setIsAddingMember(false)
-    }
-  }
-
-  const handleCloseAddAccommodation = () => {
-    const memberCount = itinerary?.members?.length || 1
-    setNewAccommodation({
-      name: '',
-      type: 'hotel',
-      location: '',
-      locationPlaceId: '',
-      locationLat: null,
-      locationLng: null,
-      photoUrl: '',
-      checkIn: '',
-      nights: 1,
-      guests: memberCount,
-      amenities: [],
-      notes: ''
-    })
-    setShowAddAccommodation(false)
-  }
 
   // Enhanced loading and error states
   if (!session) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-cloud-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ocean-blue-600 mx-auto mb-4"></div>
+          <p className="text-stone-gray-600">Checking authentication...</p>
         </div>
       </div>
     )
@@ -1003,11 +886,11 @@ export default function ItineraryDetail() {
 
   if (!itinerary) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-cloud-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading itinerary...</p>
-          <p className="text-sm text-gray-500 mt-2">If this takes too long, please refresh the page.</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ocean-blue-600 mx-auto mb-4"></div>
+          <p className="text-stone-gray-600">Loading itinerary...</p>
+          <p className="text-sm text-stone-gray-500 mt-2">If this takes too long, please refresh the page.</p>
         </div>
       </div>
     )
@@ -1019,14 +902,14 @@ export default function ItineraryDetail() {
   
   if (!userHasAccess) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-cloud-white flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-500 text-6xl mb-4">🚫</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You do not have permission to view this itinerary.</p>
+          <div className="text-sunset-coral-500 text-6xl mb-4">🚫</div>
+          <h1 className="text-2xl font-bold text-stone-gray-900 mb-2">Access Denied</h1>
+          <p className="text-stone-gray-600 mb-4">You do not have permission to view this itinerary.</p>
           <Link 
             href="/" 
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-block px-4 py-2 bg-sunset-coral-600 text-white rounded-lg hover:bg-sunset-coral-700 transition-colors"
           >
             Return Home
           </Link>
@@ -1036,17 +919,12 @@ export default function ItineraryDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-cloud-white">
       {/* Header */}
       <TripHeader
         itinerary={itinerary}
         session={session}
         isAdmin={isAdmin}
-        showMembers={showMembers}
-        setShowMembers={setShowMembers}
-        setShowAddMember={setShowAddMember}
-        updateMemberRole={updateMemberRole}
-        removeMember={removeMember}
         isRefreshing={isRefreshing}
       />
 
@@ -1054,22 +932,6 @@ export default function ItineraryDetail() {
       <div className="flex" style={{ height: 'calc(100vh - 80px)' }}>
         {/* Left Side - 40% */}
         <div className="w-full xl:w-2/5 flex flex-col">
-          {/* Accommodation Section */}
-          <div className="p-4 border-b border-gray-200">
-            <AccommodationPlanner 
-              itineraryId={itinerary.id} 
-              onAccommodationsChange={() => loadAccommodations(itinerary.id)}
-              onAddAccommodation={() => {
-                const memberCount = itinerary?.members?.length || 1
-                setNewAccommodation(prev => ({
-                  ...prev,
-                  guests: memberCount,
-                  checkIn: ''
-                }))
-                setShowAddAccommodation(true)
-              }}
-            />
-          </div>
 
           {/* Days and Activities Section - Scrollable */}
           <div className="flex-1 overflow-y-auto">
@@ -1131,24 +993,12 @@ export default function ItineraryDetail() {
         onSubmit={handleAddActivity}
       />
 
-      {/* Add Member Modal */}
-      <AddMemberModal
-        isOpen={showAddMember}
-        onClose={() => setShowAddMember(false)}
-        newMemberEmail={newMemberEmail}
-        setNewMemberEmail={setNewMemberEmail}
-        isAddingMember={isAddingMember}
-        onSubmit={handleAddMemberSubmit}
-      />
 
-      {/* Add Accommodation Modal */}
-      <AddAccommodationModal
-        isOpen={showAddAccommodation}
-        onClose={handleCloseAddAccommodation}
-        newAccommodation={newAccommodation}
-        setNewAccommodation={setNewAccommodation}
-        onSubmit={handleAddAccommodation}
-      />
     </div>
   )
+}
+
+// Export default page component that matches Next.js Page interface
+export default function Page({ params }: { params: Promise<{ id: string }> }) {
+  return <ItineraryDetail params={params} />
 }
