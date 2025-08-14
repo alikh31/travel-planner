@@ -515,14 +515,14 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
           const hasChanges = checkForChanges(itinerary, newData)
           if (hasChanges) {
             setItinerary(newData)
-            // For background updates, preserve the selected day if it still exists
-            // Only set to first day if no day is currently selected or selected day no longer exists
+            // For background updates, NEVER change the selected day or update URL
+            // The user's current selection should be preserved regardless of data changes
+            // Only update internally if the current selected day no longer exists in the data
             const currentSelectedDay = selectedDay
-            if (currentSelectedDay && newData.days.some((day: any) => day.id === currentSelectedDay)) {
-              // Keep current selection if it still exists - no URL update needed
-            } else {
+            if (currentSelectedDay && !newData.days.some((day: any) => day.id === currentSelectedDay)) {
+              // If selected day no longer exists, silently update internal state only (no URL update)
               const newSelectedDay = newData.days.length > 0 ? newData.days[0].id : null
-              updateSelectedDay(newSelectedDay)
+              setSelectedDay(newSelectedDay)
             }
           }
         } else {
