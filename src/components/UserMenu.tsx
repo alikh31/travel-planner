@@ -59,7 +59,7 @@ export default function UserMenu({ itineraryId }: UserMenuProps) {
         leaveFrom="transform opacity-100 scale-100"
         leaveTo="transform opacity-0 scale-95"
       >
-        <Menu.Items className="absolute right-0 mt-2 w-64 origin-top-right rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none divide-y divide-gray-100 z-50">
+        <Menu.Items className="absolute right-0 mt-2 w-64 origin-top-right rounded-lg bg-white shadow-lg focus:outline-none z-[60]">
           {/* User Info Section */}
           <div className="px-4 py-3">
             <p className="text-sm font-medium text-stone-gray-900">{session.user.name}</p>
@@ -129,17 +129,22 @@ export default function UserMenu({ itineraryId }: UserMenuProps) {
           {/* User Actions */}
           <div className="py-1">
             <Menu.Item>
-              {({ active }) => (
-                <button
-                  onClick={() => router.push('/')}
-                  className={`${
-                    active ? 'bg-stone-gray-100' : ''
-                  } flex w-full items-center px-4 py-2 text-sm text-stone-gray-700`}
-                >
-                  <User className="mr-3 h-4 w-4 text-stone-gray-400" />
-                  My Itineraries
-                </button>
-              )}
+              {({ active }) => {
+                const isCurrentPage = pathname === '/'
+                return (
+                  <button
+                    onClick={() => router.push('/')}
+                    className={`${
+                      active ? 'bg-stone-gray-100' : ''
+                    } ${
+                      isCurrentPage ? 'bg-ocean-blue-50 text-ocean-blue-700' : 'text-stone-gray-700'
+                    } flex w-full items-center px-4 py-2 text-sm`}
+                  >
+                    <User className={`mr-3 h-4 w-4 ${isCurrentPage ? 'text-ocean-blue-500' : 'text-stone-gray-400'}`} />
+                    My Itineraries
+                  </button>
+                )
+              }}
             </Menu.Item>
             <Menu.Item>
               {({ active }) => {

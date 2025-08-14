@@ -43,7 +43,13 @@ const ActivitiesMap = memo(function ActivitiesMap({
 
   // Filter activities that have location data
   const activitiesWithLocation = activities.filter(
-    activity => activity.location && (activity.locationLat && activity.locationLng)
+    activity => activity.location && 
+                activity.locationLat && 
+                activity.locationLng &&
+                typeof activity.locationLat === 'number' && 
+                typeof activity.locationLng === 'number' &&
+                !isNaN(activity.locationLat) && 
+                !isNaN(activity.locationLng)
   )
 
   const initializeMap = useCallback(async () => {
@@ -57,27 +63,73 @@ const ActivitiesMap = memo(function ActivitiesMap({
       const { loadGoogleMaps } = await import('../lib/googleMaps')
       const google = await loadGoogleMaps()
       
-      if (!google) {
+      if (!google || !google.maps || !google.maps.LatLngBounds || !google.maps.Map) {
         setError('Failed to load Google Maps')
         setIsLoading(false)
         return
       }
 
-      // Create bounds to fit all activities
-      const bounds = new google.maps.LatLngBounds()
+      // Validate activities before proceeding
       
+      if (!activitiesWithLocation || activitiesWithLocation.length === 0) {
+        setError('No activities with valid location data')
+        setIsLoading(false)
+        return
+      }
+
       // Use the first activity's location as the initial center
       const firstActivity = activitiesWithLocation[0]
-      const initialCenter = {
-        lat: firstActivity.locationLat!,
-        lng: firstActivity.locationLng!
+      
+      // Validate coordinates thoroughly
+      if (!firstActivity || 
+          !firstActivity.locationLat || 
+          !firstActivity.locationLng || 
+          typeof firstActivity.locationLat !== 'number' || 
+          typeof firstActivity.locationLng !== 'number' ||
+          isNaN(firstActivity.locationLat) || 
+          isNaN(firstActivity.locationLng) ||
+          firstActivity.locationLat < -90 || 
+          firstActivity.locationLat > 90 ||
+          firstActivity.locationLng < -180 || 
+          firstActivity.locationLng > 180) {
+        setError('Invalid activity location data')
+        setIsLoading(false)
+        return
       }
       
-      // Create map
-      const map = new google.maps.Map(mapRef.current, {
-        center: initialCenter,
-        zoom: 13,
-        mapTypeId: google.maps.MapTypeId.ROADMAP,
+      // Create bounds to fit all activities - wrap in try-catch
+      let bounds
+      try {
+        bounds = new google.maps.LatLngBounds()
+      } catch {
+        setError('Failed to initialize map bounds')
+        setIsLoading(false)
+        return
+      }
+      
+      // Create initial center with explicit validation
+      const centerLat = parseFloat(String(firstActivity.locationLat))
+      const centerLng = parseFloat(String(firstActivity.locationLng))
+      
+      if (isNaN(centerLat) || isNaN(centerLng)) {
+        setError('Invalid location coordinates')
+        setIsLoading(false)
+        return
+      }
+      
+      const initialCenter = {
+        lat: centerLat,
+        lng: centerLng
+      }
+      
+      
+      // Create map with additional error handling
+      let map
+      try {
+        map = new google.maps.Map(mapRef.current, {
+          center: initialCenter,
+          zoom: 13,
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
         disableDefaultUI: true, // Remove all default controls
         zoomControl: true, // Keep only zoom control
         styles: [
@@ -88,6 +140,11 @@ const ActivitiesMap = memo(function ActivitiesMap({
           }
         ]
       })
+      } catch {
+        setError('Failed to initialize map')
+        setIsLoading(false)
+        return
+      }
 
       mapInstanceRef.current = map
 
@@ -166,7 +223,9 @@ const ActivitiesMap = memo(function ActivitiesMap({
 
       // Add markers for each activity
       activitiesWithLocation.forEach((activity, index) => {
-        if (activity.locationLat && activity.locationLng) {
+        if (activity.locationLat && activity.locationLng && 
+            typeof activity.locationLat === 'number' && typeof activity.locationLng === 'number' &&
+            !isNaN(activity.locationLat) && !isNaN(activity.locationLng)) {
           const position = { lat: activity.locationLat, lng: activity.locationLng }
           bounds.extend(position)
 

@@ -301,7 +301,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
 
         {/* Add Accommodation Section */}
         <div className="bg-white rounded-lg shadow-sm border border-stone-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-stone-gray-900">Add Accommodation</h2>
               <p className="text-sm text-stone-gray-600 mt-1">
@@ -310,10 +310,11 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
             </div>
             <button
               onClick={handleAddAccommodation}
-              className="flex items-center gap-2 px-4 py-2 bg-sunset-coral-600 text-white rounded-lg hover:bg-sunset-coral-700 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-sunset-coral-600 text-white rounded-lg hover:bg-sunset-coral-700 transition-colors whitespace-nowrap"
             >
               <Plus className="h-4 w-4" />
-              Add Accommodation
+              <span className="hidden sm:inline">Add Accommodation</span>
+              <span className="sm:hidden">Add</span>
             </button>
           </div>
         </div>
@@ -352,7 +353,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
                 .sort((a, b) => a.order - b.order)
                 .map((accommodation) => (
                   <div key={accommodation.id} className="px-6 py-4">
-                    <div className="flex items-start gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                       {/* Image Section */}
                       <div className="flex-shrink-0">
                         {accommodation.photoUrl ? (
@@ -376,8 +377,8 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
 
                       {/* Content Section */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
+                        <div className="sm:flex sm:items-start sm:justify-between">
+                          <div className="flex-1 sm:pr-4">
                             <h3 className="text-lg font-semibold text-stone-gray-900 mb-1">
                               {accommodation.name}
                             </h3>
@@ -387,7 +388,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
                                 {accommodation.location}
                               </div>
                             </div>
-                            <div className="flex items-center gap-6 text-sm text-stone-gray-600 mb-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm text-stone-gray-600 mb-2">
                               <div className="flex items-center gap-1">
                                 <Calendar className="h-4 w-4" />
                                 <span className="font-medium">Check-in:</span>
@@ -406,10 +407,11 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 ml-4">
+                          {/* Desktop: Buttons on right */}
+                          <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
                             <button
                               onClick={() => handleEditAccommodation(accommodation)}
-                              className="flex items-center gap-1 px-3 py-1.5 text-stone-gray-600 hover:bg-stone-gray-50 rounded-lg transition-colors"
+                              className="flex items-center gap-1 px-3 py-1.5 text-stone-gray-600 hover:bg-stone-gray-50 rounded-lg transition-colors text-sm"
                             >
                               <Pencil className="h-4 w-4" />
                               Edit
@@ -417,7 +419,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
                             <button
                               onClick={() => handleDeleteAccommodation(accommodation.id)}
                               disabled={deletingAccommodationId === accommodation.id}
-                              className="flex items-center gap-1 px-3 py-1.5 text-sunset-coral-600 hover:bg-sunset-coral-50 rounded-lg transition-colors disabled:opacity-50"
+                              className="flex items-center gap-1 px-3 py-1.5 text-sunset-coral-600 hover:bg-sunset-coral-50 rounded-lg transition-colors disabled:opacity-50 text-sm"
                             >
                               {deletingAccommodationId === accommodation.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -428,6 +430,29 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
                             </button>
                           </div>
                         </div>
+                      </div>
+
+                      {/* Mobile: Buttons at bottom */}
+                      <div className="flex sm:hidden items-center justify-end gap-2 mt-2">
+                        <button
+                          onClick={() => handleEditAccommodation(accommodation)}
+                          className="flex items-center gap-1 px-3 py-1.5 text-stone-gray-600 hover:bg-stone-gray-50 rounded-lg transition-colors text-sm"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAccommodation(accommodation.id)}
+                          disabled={deletingAccommodationId === accommodation.id}
+                          className="flex items-center gap-1 px-3 py-1.5 text-sunset-coral-600 hover:bg-sunset-coral-50 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                        >
+                          {deletingAccommodationId === accommodation.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                          Delete
+                        </button>
                       </div>
                     </div>
                   </div>

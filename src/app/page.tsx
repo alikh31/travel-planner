@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession, signIn, signOut } from 'next-auth/react'
+import { useSession, signIn } from 'next-auth/react'
 import { PlusCircle, MapPin, Users, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
+import UserMenu from '@/components/UserMenu'
+import TravelCardImages from '@/components/TravelCardImages'
 
 interface Itinerary {
   id: string
@@ -30,6 +32,10 @@ interface Itinerary {
       title: string
       startTime?: string
       duration?: number
+      location?: string
+      locationPlaceId?: string
+      locationLat?: number
+      locationLng?: number
     }>
   }>
 }
@@ -119,7 +125,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-cloud-white">
-      <header className="bg-white shadow-sm border-b">
+      <header className="sticky top-0 z-40 bg-white shadow-sm border-b overflow-visible">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -127,22 +133,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold text-stone-gray-900">Travel Planner</h1>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center text-sm text-stone-gray-600">
-                <img
-                  src={session.user?.image || '/default-avatar.png'}
-                  alt={session.user?.name || 'User'}
-                  className="h-8 w-8 rounded-full mr-2"
-                />
-                {session.user?.name}
-              </div>
-              <button
-                onClick={() => signOut()}
-                className="text-sm text-stone-gray-500 hover:text-stone-gray-700"
-              >
-                Sign out
-              </button>
-            </div>
+            <UserMenu />
           </div>
         </div>
       </header>
@@ -150,10 +141,7 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-3xl font-bold text-stone-gray-900 mb-2">Your Travel Plans</h2>
-              <p className="text-stone-gray-600">Create and manage your collaborative itineraries</p>
-            </div>
+            <h2 className="text-3xl font-bold text-stone-gray-900">Travels</h2>
             
             <Link
               href="/itinerary/new"
@@ -171,68 +159,123 @@ export default function Home() {
             <p className="mt-4 text-gray-600">Loading itineraries...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <>
             {itineraries.length === 0 ? (
-              <div className="col-span-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
                 <div className="text-gray-400 mb-4">
                   <Calendar className="h-12 w-12 mx-auto" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No itineraries yet</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No travels yet</h3>
                 <p className="text-gray-600 mb-4">Create your first travel plan to get started</p>
                 <Link
                   href="/itinerary/new"
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                  className="inline-flex items-center px-4 py-2 bg-sunset-coral-600 hover:bg-sunset-coral-700 text-white font-medium rounded-lg transition-colors"
                 >
-                  Create Itinerary
+                  <PlusCircle className="h-5 w-5 mr-2" />
+                  Create Travel
                 </Link>
               </div>
             ) : (
-              itineraries.map((itinerary) => {
-                const totalActivities = itinerary.days.reduce(
-                  (total, day) => total + day.activities.length,
-                  0
+              (() => {
+                // Sort itineraries by start date (latest first)
+                const sortedItineraries = [...itineraries].sort((a, b) => 
+                  new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
                 )
-                
-                return (
-                  <Link
-                    key={itinerary.id}
-                    href={`/itinerary/${itinerary.id}`}
-                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-                  >
-                    <div className="mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        {itinerary.title}
-                      </h3>
-                      <div className="flex items-center text-sm text-gray-600 mb-2">
-                        <MapPin className="h-4 w-4 mr-1" />
-                        {itinerary.destination}
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        {format(new Date(itinerary.startDate), 'MMM d')} - {format(new Date(itinerary.endDate), 'MMM d, yyyy')}
-                      </div>
+
+                // Group by year
+                const groupedByYear = sortedItineraries.reduce((groups, itinerary) => {
+                  const year = new Date(itinerary.startDate).getFullYear().toString()
+                  if (!groups[year]) {
+                    groups[year] = []
+                  }
+                  groups[year].push(itinerary)
+                  return groups
+                }, {} as Record<string, typeof itineraries>)
+
+                // Get years sorted by latest first
+                const years = Object.keys(groupedByYear).sort((a, b) => parseInt(b) - parseInt(a))
+
+                return years.map(year => (
+                  <div key={year} className="mb-8">
+                    <h3 className="text-2xl font-light text-stone-gray-400 mb-6">
+                      {year}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {groupedByYear[year].map((itinerary) => {
+                        const totalActivities = itinerary.days.reduce(
+                          (total, day) => total + day.activities.length,
+                          0
+                        )
+                        
+                        // Collect all activities for the image component
+                        const allActivities: Array<{title: string, startTime?: string, locationPlaceId?: string}> = []
+                        for (const day of itinerary.days) {
+                          for (const activity of day.activities) {
+                            allActivities.push({
+                              title: activity.title,
+                              startTime: activity.startTime,
+                              locationPlaceId: activity.locationPlaceId
+                            })
+                          }
+                        }
+                        
+                        // Get first 3 activities for display (if needed for future use)
+                        // const displayActivities = allActivities.slice(0, 3)
+                        
+                        return (
+                          <Link
+                            key={itinerary.id}
+                            href={`/itinerary/${itinerary.id}`}
+                            className="bg-white rounded-lg shadow-sm border border-stone-gray-200 overflow-hidden hover:shadow-md transition-shadow group"
+                          >
+                            {/* Image Section */}
+                            <TravelCardImages 
+                              activities={allActivities}
+                              destination={itinerary.destination}
+                              itineraryId={itinerary.id}
+                            />
+                            
+                            {/* Content Section */}
+                            <div className="p-6">
+                              <div className="mb-4">
+                                <h4 className="text-lg font-semibold text-stone-gray-900 mb-1">
+                                  {itinerary.title}
+                                </h4>
+                                <div className="flex items-center text-sm text-stone-gray-600 mb-2">
+                                  <MapPin className="h-4 w-4 mr-1" />
+                                  {itinerary.destination}
+                                </div>
+                                <div className="flex items-center text-sm text-stone-gray-600">
+                                  <Calendar className="h-4 w-4 mr-1" />
+                                  {format(new Date(itinerary.startDate), 'MMM d')} - {format(new Date(itinerary.endDate), 'MMM d, yyyy')}
+                                </div>
+                              </div>
+                              
+                              {itinerary.description && (
+                                <p className="text-sm text-stone-gray-600 mb-4 line-clamp-2">
+                                  {itinerary.description}
+                                </p>
+                              )}
+                              
+                              <div className="flex items-center justify-between text-sm text-stone-gray-500">
+                                <div className="flex items-center">
+                                  <Users className="h-4 w-4 mr-1" />
+                                  {itinerary.members.length} member{itinerary.members.length !== 1 ? 's' : ''}
+                                </div>
+                                <div>
+                                  {totalActivities} activit{totalActivities !== 1 ? 'ies' : 'y'}
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        )
+                      })}
                     </div>
-                    
-                    {itinerary.description && (
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                        {itinerary.description}
-                      </p>
-                    )}
-                    
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <Users className="h-4 w-4 mr-1" />
-                        {itinerary.members.length} member{itinerary.members.length !== 1 ? 's' : ''}
-                      </div>
-                      <div>
-                        {totalActivities} activit{totalActivities !== 1 ? 'ies' : 'y'}
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })
+                  </div>
+                ))
+              })()
             )}
-          </div>
+          </>
         )}
       </main>
     </div>
