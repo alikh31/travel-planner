@@ -557,25 +557,24 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
           const hasChanges = checkForChanges(itinerary, newData)
           if (hasChanges) {
             setItinerary(newData)
-            // For background updates, NEVER change the selected day or update URL
-            // The user's current selection should be preserved regardless of data changes
-            // Only update internally if the current selected day no longer exists in the data
-            const currentSelectedDay = selectedDay
-            if (currentSelectedDay && !newData.days.some((day: any) => day.id === currentSelectedDay)) {
-              // If selected day no longer exists, silently update internal state only (no URL update)
-              const newSelectedDay = newData.days.length > 0 ? newData.days[0].id : null
-              setSelectedDay(newSelectedDay)
-            }
+            // For background updates, ABSOLUTELY NEVER change the selected day
+            // The user's current view should be completely preserved
+            // Even if the selected day no longer exists, maintain the user's context
+            // They can manually navigate if needed - don't disrupt their experience
           }
         } else {
           setItinerary(newData)
-          // For non-background updates, preserve selected day or set to first day
+          // For non-background updates (initial load, manual refresh), preserve selected day or set to first day
           const currentSelectedDay = selectedDay
           if (currentSelectedDay && newData.days.some((day: any) => day.id === currentSelectedDay)) {
             // Keep current selection if it still exists - no URL update needed
           } else {
-            const newSelectedDay = newData.days.length > 0 ? newData.days[0].id : null
-            updateSelectedDay(newSelectedDay)
+            // Only set default day if we don't have a selected day yet
+            // This prevents resetting the day selection during non-background updates
+            if (!currentSelectedDay && newData.days.length > 0) {
+              const newSelectedDay = newData.days[0].id
+              updateSelectedDay(newSelectedDay)
+            }
           }
         }
       } else if (response.status === 401) {
@@ -623,6 +622,8 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   // Handle URL parameter changes (browser navigation)
   useEffect(() => {
     const dayFromUrl = searchParams.get('day')
+    // Only update selectedDay from URL if there's an actual change
+    // and prevent unnecessary updates during background polling
     if (dayFromUrl !== selectedDay) {
       setSelectedDay(dayFromUrl)
     }
@@ -634,8 +635,9 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
 
     const interval = setInterval(() => {
       // Only poll if user is not actively interacting with the page and tab is visible
+      // Background polling should NEVER affect navigation state or user position
       if (!showAddActivity && !isSubmittingComment && !isDeletingActivity && !document.hidden) {
-        fetchItinerary(resolvedParams.id as string, true) // true = background update
+        fetchItinerary(resolvedParams.id as string, true) // true = background update (no navigation changes)
       }
     }, 5000) // Poll every 5 seconds
 
