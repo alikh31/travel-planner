@@ -1,6 +1,7 @@
 'use client'
 
 import { format } from 'date-fns'
+import { useEffect, useRef } from 'react'
 import { Calendar, Plus, Map, Hotel, AlertCircle, AlertTriangle } from 'lucide-react'
 import AccommodationCard from './AccommodationCard'
 import Commute from './Commute'
@@ -56,72 +57,108 @@ export default function DaysAndActivities({
   getEndTime,
   TimeGap
 }: DaysAndActivitiesProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to selected day in mobile slider
+  useEffect(() => {
+    if (scrollRef.current && selectedDay) {
+      const selectedIndex = itinerary.days.findIndex((d: any) => d.id === selectedDay)
+      if (selectedIndex !== -1) {
+        const button = scrollRef.current.children[selectedIndex] as HTMLElement
+        if (button && button.scrollIntoView) {
+          button.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest',
+            inline: 'center' 
+          })
+        }
+      }
+    }
+  }, [selectedDay, itinerary.days])
+
+  const DayButton = ({ day, index }: { day: any, index: number }) => {
+    const accommodationStatus = getAccommodationStatusForDate(day.date)
+    
+    return (
+      <button
+        key={day.id}
+        onClick={() => setSelectedDay(day.id)}
+        className={`flex-shrink-0 p-3 rounded-lg transition-colors md:w-full md:text-left ${
+          selectedDay === day.id
+            ? 'bg-ocean-blue-100 text-ocean-blue-900 border border-ocean-blue-200'
+            : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+        }`}
+      >
+        <div className="flex md:flex-col md:space-y-1 items-center md:items-start justify-between">
+          <div className="font-medium whitespace-nowrap">Day {index + 1}</div>
+          
+          {/* Accommodation Status Indicator */}
+          <div className="flex md:justify-end md:w-full">
+            {accommodationStatus.status === 'full' && (
+              <Hotel 
+                className="h-4 w-4 text-green-600" 
+              />
+            )}
+            {accommodationStatus.status === 'partial' && (
+              <AlertTriangle 
+                className="h-4 w-4 text-orange-500" 
+              />
+            )}
+            {accommodationStatus.status === 'none' && (
+              <AlertCircle 
+                className="h-4 w-4 text-amber-500" 
+              />
+            )}
+          </div>
+        </div>
+        
+        <div className="text-sm text-gray-600 mt-1 md:mt-0 whitespace-nowrap">
+          {format(new Date(day.date), 'MMM d')}
+        </div>
+        
+        <div className="hidden md:flex items-center justify-between text-xs text-gray-500 mt-1">
+          <span>{day.activities?.length || 0} activities</span>
+          
+          {/* Accommodation Status Text */}
+          {accommodationStatus.status !== 'none' && (
+            <span className={`${
+              accommodationStatus.status === 'full' 
+                ? 'text-green-600' 
+                : 'text-orange-500'
+            }`}>
+              {accommodationStatus.totalGuests}/{accommodationStatus.memberCount} guests
+            </span>
+          )}
+        </div>
+      </button>
+    )
+  }
+
   return (
-    <div className="flex h-full">
-      {/* Days List - Left Side */}
-      <div className="w-1/3 border-r border-gray-200 p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Days</h3>
-        <div className="space-y-2">
-          {itinerary.days.map((day: any, index: number) => {
-            const accommodationStatus = getAccommodationStatusForDate(day.date)
-            
-            return (
-              <button
-                key={day.id}
-                onClick={() => setSelectedDay(day.id)}
-                className={`w-full text-left p-3 rounded-lg transition-colors ${
-                  selectedDay === day.id
-                    ? 'bg-ocean-blue-100 text-ocean-blue-900 border border-ocean-blue-200'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">Day {index + 1}</div>
-                  
-                  {/* Accommodation Status Indicator */}
-                  {accommodationStatus.status === 'full' && (
-                    <Hotel 
-                      className="h-4 w-4 text-green-600" 
-                    />
-                  )}
-                  {accommodationStatus.status === 'partial' && (
-                    <AlertTriangle 
-                      className="h-4 w-4 text-orange-500" 
-                    />
-                  )}
-                  {accommodationStatus.status === 'none' && (
-                    <AlertCircle 
-                      className="h-4 w-4 text-amber-500" 
-                    />
-                  )}
-                </div>
-                
-                <div className="text-sm text-gray-600">
-                  {format(new Date(day.date), 'MMM d, yyyy')}
-                </div>
-                
-                <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
-                  <span>{day.activities?.length || 0} activities</span>
-                  
-                  {/* Accommodation Status Text */}
-                  {accommodationStatus.status !== 'none' && (
-                    <span className={`${
-                      accommodationStatus.status === 'full' 
-                        ? 'text-green-600' 
-                        : 'text-orange-500'
-                    }`}>
-                      {accommodationStatus.totalGuests}/{accommodationStatus.memberCount} guests
-                    </span>
-                  )}
-                </div>
-              </button>
-            )
-          })}
+    <div className="flex flex-col md:flex-row h-full">
+      {/* Mobile: Horizontal Slider */}
+      <div className="md:hidden sticky top-0 bg-white z-10 border-b border-gray-200">
+        <div 
+          ref={scrollRef}
+          className="flex gap-3 overflow-x-auto scroll-smooth px-4 py-4 scrollbar-hide"
+        >
+          {itinerary.days.map((day: any, index: number) => (
+            <DayButton key={day.id} day={day} index={index} />
+          ))}
         </div>
       </div>
 
-      {/* Activities List - Right Side */}
-      <div className="w-2/3 p-4">
+      {/* Desktop: Left Sidebar */}
+      <div className="hidden md:block w-1/3 border-r border-gray-200 p-4">
+        <div className="space-y-2">
+          {itinerary.days.map((day: any, index: number) => (
+            <DayButton key={day.id} day={day} index={index} />
+          ))}
+        </div>
+      </div>
+
+      {/* Activities List */}
+      <div className="flex-1 md:w-2/3 p-4">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">
@@ -137,7 +174,7 @@ export default function DaysAndActivities({
           <div className="flex space-x-2">
             <button
               onClick={() => setShowMap(true)}
-              className="xl:hidden flex items-center px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="hidden md:flex xl:hidden items-center px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Map className="h-4 w-4 mr-2" />
               Show on Map
@@ -263,6 +300,15 @@ export default function DaysAndActivities({
           </div>
         )}
       </div>
+
+      {/* Mobile: Floating Show on Map Button */}
+      <button
+        onClick={() => setShowMap(true)}
+        className="md:hidden fixed bottom-6 right-6 z-20 flex items-center px-4 py-3 bg-ocean-blue-600 hover:bg-ocean-blue-700 text-white rounded-full shadow-lg transition-colors"
+      >
+        <Map className="h-5 w-5 mr-2" />
+        Show on Map
+      </button>
     </div>
   )
 }

@@ -88,3 +88,13 @@ body {
   color: var(--stone-gray);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Hide scrollbars for mobile slider */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
