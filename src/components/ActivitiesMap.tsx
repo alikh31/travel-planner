@@ -3,7 +3,7 @@
 /// <reference path="../types/google-maps.d.ts" />
 
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
-import { MapPin, X } from 'lucide-react'
+import { MapPin, X, ArrowLeft } from 'lucide-react'
 
 interface Activity {
   id: string
@@ -515,23 +515,11 @@ const ActivitiesMap = memo(function ActivitiesMap({
   }
 
   return (
-    <div className={`${className} ${isModal ? 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50' : ''}`}>
-      <div className={`bg-white rounded-lg ${isModal ? 'shadow-xl max-w-4xl w-full max-h-[90vh]' : 'h-full'} flex flex-col`}>
-        {isModal && (
-          <div className="flex items-center justify-between p-4 border-b border-stone-gray-200">
-            <h3 className="text-lg font-semibold text-stone-gray-900">Activities Map</h3>
-            <button
-              onClick={onClose}
-              className="text-stone-gray-400 hover:text-stone-gray-600"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        )}
-        
+    <div className={`${className} ${isModal ? 'fixed inset-0 bg-white z-50' : ''}`}>
+      <div className={`${isModal ? 'h-full' : 'h-full bg-white rounded-lg'} flex flex-col relative`}>
         <div className="flex-1 relative">
           {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-cloud-white rounded-b-lg">
+            <div className="absolute inset-0 flex items-center justify-center bg-cloud-white z-10">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
                 <p className="text-sm text-stone-gray-500">Loading map...</p>
@@ -540,7 +528,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
           )}
           
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-cloud-white rounded-b-lg">
+            <div className="absolute inset-0 flex items-center justify-center bg-cloud-white z-10">
               <div className="text-center">
                 <MapPin className="h-8 w-8 text-red-300 mx-auto mb-2" />
                 <p className="text-sm text-red-600">{error}</p>
@@ -550,8 +538,19 @@ const ActivitiesMap = memo(function ActivitiesMap({
           
           <div 
             ref={mapRef} 
-            className={`w-full ${isModal ? 'h-[60vh]' : 'h-full'} rounded-b-lg`}
+            className="w-full h-full"
           />
+
+          {/* Floating Back Button for Full-Screen Modal */}
+          {isModal && onClose && (
+            <button
+              onClick={onClose}
+              className="fixed top-6 left-6 z-20 flex items-center px-4 py-3 bg-white hover:bg-gray-50 text-gray-700 rounded-full shadow-lg border transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5 mr-2" />
+              Back to Activities
+            </button>
+          )}
         </div>
       </div>
     </div>

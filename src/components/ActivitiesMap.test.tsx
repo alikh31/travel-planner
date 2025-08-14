@@ -209,7 +209,7 @@ describe('ActivitiesMap', () => {
       />
     )
     
-    expect(screen.getByText('Activities Map')).toBeInTheDocument()
+    expect(screen.getByText('Back to Activities')).toBeInTheDocument()
     
     const closeButton = screen.getByRole('button')
     fireEvent.click(closeButton)
