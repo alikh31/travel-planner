@@ -28,7 +28,6 @@ export default function MapSection({
     <div className="h-full bg-white border-l border-gray-200">
       {activities.length > 0 ? (
         <ActivitiesMap
-          key={selectedDay}
           activities={activities}
           selectedDay={selectedDay || undefined}
           className="h-full"
