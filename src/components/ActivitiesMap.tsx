@@ -153,6 +153,22 @@ const ActivitiesMap = memo(function ActivitiesMap({
       markersRef.current.forEach(marker => marker.setMap(null))
       markersRef.current = []
 
+      // Store reference for bounds fitting after all markers are added
+      let accommodationProcessed = false
+      const fitMapBounds = () => {
+        if (!accommodationLocation || accommodationProcessed) {
+          // If no accommodation or already processed, fit bounds immediately
+          if (activitiesWithLocation.length === 1) {
+            map.setCenter(bounds.getCenter())
+            map.setZoom(15)
+          } else if (activitiesWithLocation.length > 1) {
+            map.fitBounds(bounds)
+            const padding = { top: 50, right: 50, bottom: 50, left: 50 }
+            map.fitBounds(bounds, padding)
+          }
+        }
+      }
+
       // Add accommodation marker if available
       if (accommodationLocation) {
         try {
@@ -204,8 +220,9 @@ const ActivitiesMap = memo(function ActivitiesMap({
                 })
 
                 markersRef.current.push(accommodationMarker)
+                accommodationProcessed = true
                 
-                // Update map bounds after adding accommodation
+                // Now fit bounds with accommodation included
                 if (activitiesWithLocation.length === 0) {
                   map.setCenter(accommodationPos)
                   map.setZoom(15)
@@ -214,12 +231,24 @@ const ActivitiesMap = memo(function ActivitiesMap({
                   const padding = { top: 50, right: 50, bottom: 50, left: 50 }
                   map.fitBounds(bounds, padding)
                 }
+              } else {
+                // Geocoding failed, still mark as processed
+                accommodationProcessed = true
+                fitMapBounds()
               }
             })
+          } else {
+            accommodationProcessed = true
+            fitMapBounds()
           }
         } catch (error) {
           console.warn('Error adding accommodation marker:', error)
+          accommodationProcessed = true
+          fitMapBounds()
         }
+      } else {
+        // No accommodation location provided
+        fitMapBounds()
       }
 
       // Add markers for each activity
@@ -391,16 +420,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
         }
       }
 
-      // Fit map to show all markers
-      if (activitiesWithLocation.length === 1) {
-        map.setCenter(bounds.getCenter())
-        map.setZoom(15)
-      } else if (activitiesWithLocation.length > 1) {
-        map.fitBounds(bounds)
-        // Add some padding
-        const padding = { top: 50, right: 50, bottom: 50, left: 50 }
-        map.fitBounds(bounds, padding)
-      }
+      // Map bounds fitting is now handled after accommodation processing
 
       setIsLoading(false)
     } catch (error) {
@@ -408,7 +428,7 @@ const ActivitiesMap = memo(function ActivitiesMap({
       setError('Failed to load map')
       setIsLoading(false)
     }
-  }, [activitiesWithLocation])
+  }, [activitiesWithLocation, accommodationLocation])
 
   // Handle transport mode changes from TimeGap components
   useEffect(() => {

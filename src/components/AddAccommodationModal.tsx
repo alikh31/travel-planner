@@ -102,7 +102,7 @@ export default function AddAccommodationModal({
           checkIn: editingAccommodation.checkIn,
           nights: editingAccommodation.nights,
           guests: editingAccommodation.guests,
-          amenities: editingAccommodation.amenities,
+          amenities: editingAccommodation.amenities || [],
           notes: editingAccommodation.notes || ''
         }))
       } else if (itinerary) {
@@ -170,9 +170,10 @@ export default function AddAccommodationModal({
   }, [])
 
   const toggleAmenity = (amenity: string) => {
-    const updatedAmenities = newAccommodation.amenities.includes(amenity)
-      ? newAccommodation.amenities.filter(a => a !== amenity)
-      : [...newAccommodation.amenities, amenity]
+    const currentAmenities = newAccommodation.amenities || []
+    const updatedAmenities = currentAmenities.includes(amenity)
+      ? currentAmenities.filter(a => a !== amenity)
+      : [...currentAmenities, amenity]
     
     setNewAccommodation(prev => ({
       ...prev,
@@ -315,7 +316,7 @@ export default function AddAccommodationModal({
                 <label key={amenity.value} className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    checked={newAccommodation.amenities.includes(amenity.value)}
+                    checked={(newAccommodation.amenities || []).includes(amenity.value)}
                     onChange={() => toggleAmenity(amenity.value)}
                     className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                   />

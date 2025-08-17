@@ -32,6 +32,11 @@ export async function GET(
             user: true,
           },
         },
+        accommodations: {
+          orderBy: {
+            checkIn: 'asc',
+          },
+        },
         days: {
           include: {
             activities: {
