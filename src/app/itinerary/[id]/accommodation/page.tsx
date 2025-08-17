@@ -19,16 +19,22 @@ import AddAccommodationModal from '@/components/AddAccommodationModal'
 
 interface Accommodation {
   id: string
+  itineraryId?: string
   name: string
-  type: string
   location: string
   checkIn: string
   checkOut: string
   nights: number
   guests: number
+  cost?: number
+  notes?: string
+  bookingRef?: string
+  createdAt?: string
+  updatedAt?: string
+  // These fields are not in the database yet but kept for UI compatibility
+  type: string
   photoUrl?: string
   amenities: string[]
-  notes?: string
   order: number
 }
 
@@ -91,7 +97,6 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     fetchItinerary()
-    loadAccommodations()
   }, [resolvedParams.id])
 
   const fetchItinerary = async () => {
@@ -100,6 +105,16 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
       if (response.ok) {
         const data = await response.json()
         setItinerary(data)
+        // Map accommodations with order index
+        if (data.accommodations) {
+          const accommodationsWithOrder = data.accommodations.map((acc: any, index: number) => ({
+            ...acc,
+            order: index + 1,
+            type: acc.type || 'hotel',
+            amenities: acc.amenities || []
+          }))
+          setAccommodations(accommodationsWithOrder)
+        }
       } else {
         console.error('Failed to fetch itinerary')
       }
@@ -110,26 +125,6 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const loadAccommodations = async () => {
-    try {
-      // Load accommodations from localStorage (same as main page)
-      const savedAccommodations = localStorage.getItem(`accommodations-${resolvedParams.id}`)
-      if (savedAccommodations) {
-        try {
-          const parsedAccommodations = JSON.parse(savedAccommodations)
-          setAccommodations(parsedAccommodations)
-        } catch (parseError) {
-          console.error('Error parsing saved accommodations:', parseError)
-          setAccommodations([])
-        }
-      } else {
-        setAccommodations([])
-      }
-    } catch (error) {
-      console.error('Error loading accommodations:', error)
-      setAccommodations([])
-    }
-  }
 
   const handleAddAccommodation = () => {
     setEditingAccommodation(null)
@@ -161,14 +156,16 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
 
     setDeletingAccommodationId(accommodationId)
     try {
-      // Remove from accommodations array
-      const updatedAccommodations = accommodations.filter(acc => acc.id !== accommodationId)
+      const response = await fetch(`/api/accommodations/${accommodationId}`, {
+        method: 'DELETE'
+      })
       
-      // Save to localStorage
-      localStorage.setItem(`accommodations-${resolvedParams.id}`, JSON.stringify(updatedAccommodations))
-      
-      // Reload accommodations
-      loadAccommodations()
+      if (response.ok) {
+        // Refresh itinerary to get updated accommodations
+        await fetchItinerary()
+      } else {
+        alert('Failed to delete accommodation. Please try again.')
+      }
     } catch (error) {
       console.error('Error deleting accommodation:', error)
       alert('Failed to delete accommodation')
@@ -186,42 +183,56 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
       return
     }
     
+    if (!newAccommodation.location.trim()) {
+      alert('Please enter accommodation location')
+      return
+    }
+    
     try {
+      const checkOut = newAccommodation.checkIn ? 
+        new Date(new Date(newAccommodation.checkIn).getTime() + newAccommodation.nights * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : ''
+      
       if (editingAccommodation) {
         // Editing existing accommodation
-        const updatedAccommodation = {
-          ...editingAccommodation,
-          name: newAccommodation.name,
-          type: newAccommodation.type,
-          location: newAccommodation.location || editingAccommodation.location, // Keep existing location if not changed
-          photoUrl: newAccommodation.photoUrl,
-          checkIn: newAccommodation.checkIn,
-          checkOut: newAccommodation.checkIn ? 
-            new Date(new Date(newAccommodation.checkIn).getTime() + newAccommodation.nights * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : '',
-          nights: newAccommodation.nights,
-          guests: newAccommodation.guests,
-          amenities: newAccommodation.amenities,
-          notes: newAccommodation.notes
-        }
+        const response = await fetch(`/api/accommodations/${editingAccommodation.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: newAccommodation.name,
+            location: newAccommodation.location,
+            checkIn: newAccommodation.checkIn,
+            checkOut,
+            nights: newAccommodation.nights,
+            guests: newAccommodation.guests,
+            notes: newAccommodation.notes,
+            photoUrl: newAccommodation.photoUrl
+          })
+        })
         
-        // Update in accommodations array
-        const updatedAccommodations = accommodations.map(acc => 
-          acc.id === editingAccommodation.id ? updatedAccommodation : acc
-        )
-        localStorage.setItem(`accommodations-${resolvedParams.id}`, JSON.stringify(updatedAccommodations))
+        if (!response.ok) {
+          throw new Error('Failed to update accommodation')
+        }
       } else {
         // Adding new accommodation
-        const accommodation = {
-          ...newAccommodation,
-          id: `accommodation-${Date.now()}`,
-          checkOut: newAccommodation.checkIn ? 
-            new Date(new Date(newAccommodation.checkIn).getTime() + newAccommodation.nights * 24 * 60 * 60 * 1000).toISOString().split('T')[0] : '',
-          order: accommodations.length + 1
+        const response = await fetch('/api/accommodations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            itineraryId: resolvedParams.id,
+            name: newAccommodation.name,
+            location: newAccommodation.location,
+            checkIn: newAccommodation.checkIn,
+            checkOut,
+            nights: newAccommodation.nights,
+            guests: newAccommodation.guests,
+            notes: newAccommodation.notes,
+            photoUrl: newAccommodation.photoUrl
+          })
+        })
+        
+        if (!response.ok) {
+          throw new Error('Failed to add accommodation')
         }
-
-        // Save to localStorage
-        const updatedAccommodations = [...accommodations, accommodation]
-        localStorage.setItem(`accommodations-${resolvedParams.id}`, JSON.stringify(updatedAccommodations))
       }
       
       // Reset the form
@@ -242,7 +253,9 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
       
       setShowAddAccommodation(false)
       setEditingAccommodation(null)
-      loadAccommodations()
+      
+      // Refresh itinerary to get updated accommodations
+      await fetchItinerary()
     } catch (error) {
       console.error('Error adding accommodation:', error)
       alert('Failed to add accommodation. Please try again.')
@@ -350,7 +363,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
           ) : (
             <div className="divide-y divide-stone-gray-200">
               {accommodations
-                .sort((a, b) => a.order - b.order)
+                .sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime())
                 .map((accommodation) => (
                   <div key={accommodation.id} className="px-6 py-4">
                     <div className="flex flex-col sm:flex-row sm:items-start gap-4">

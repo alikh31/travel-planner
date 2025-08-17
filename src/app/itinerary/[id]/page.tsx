@@ -8,7 +8,6 @@ import { Calendar, MapPin, ThumbsUp, ThumbsDown, MessageSquare, Edit3, Trash2, M
 import { format } from 'date-fns'
 import { generateTempId } from '@/lib/utils'
 import TimeGap from '@/components/TimeGap'
-import ActivitiesMap from '@/components/ActivitiesMap'
 import TripHeader from '@/components/TripHeader'
 import DaysAndActivities from '@/components/DaysAndActivities'
 import MapSection from '@/components/MapSection'
@@ -336,10 +335,10 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   
   // State
   const [itinerary, setItinerary] = useState<any>(null)
-  const [accommodations, setAccommodations] = useState<any[]>([])
   const [selectedDay, setSelectedDay] = useState<string | null>(searchParams.get('day'))
   const [showAddActivity, setShowAddActivity] = useState(false)
   const [showComments, setShowComments] = useState<string | null>(null)
+  const [mapAccommodation, setMapAccommodation] = useState<any>(null)
   const [newComment, setNewComment] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [showMap, setShowMap] = useState(false)
@@ -408,6 +407,22 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     `${a.id}-${a.title}-${a.location}-${a.locationPlaceId}-${a.locationLat}-${a.locationLng}-${a.startTime}-${a.duration}`
   ).join(',')]) // Only update when location-relevant data changes
 
+  // Use backend-fetched accommodation location for the map
+  const stableAccommodationLocation = useMemo(() => {
+    return mapAccommodation?.location || undefined
+  }, [mapAccommodation])
+
+  // Create a completely stable key for the map that only changes when map data actually changes
+  const mapKey = useMemo(() => {
+    const accommodationPart = stableAccommodationLocation ? `-acc:${stableAccommodationLocation}` : ''
+    return `${selectedDay}-${mapActivities.length}-${mapActivities.map((a: any) => `${a.id}-${a.locationLat}-${a.locationLng}`).join('|')}${accommodationPart}`
+  }, [selectedDay, mapActivities, stableAccommodationLocation])
+
+  // Stable callback for mobile map close
+  const handleMapClose = useCallback(() => setShowMap(false), [])
+
+
+
   // URL management function
   const updateSelectedDay = useCallback((dayId: string | null) => {
     // Set flag to prevent double state update from URL change effect
@@ -442,26 +457,34 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   }, [session?.user?.id, itinerary])
 
   // Helper function to get accommodation for a specific date
-  const getAccommodationForDate = useCallback((date: string) => {
-    return accommodations.find(acc => {
-      if (!acc.checkIn || !acc.nights) return false
+  const getAccommodationForDate = useCallback((date: string | Date) => {
+    if (!itinerary?.accommodations) return null
+    
+    return itinerary.accommodations.find((acc: any) => {
+      if (!acc.checkIn) return false
       
+      // Handle both Date objects and timestamps
       const checkInDate = new Date(acc.checkIn)
-      const checkOutDate = new Date(checkInDate.getTime() + acc.nights * 24 * 60 * 60 * 1000)
+      const checkOutDate = acc.checkOut ? new Date(acc.checkOut) : new Date(checkInDate.getTime() + (acc.nights || 1) * 24 * 60 * 60 * 1000)
       const targetDate = new Date(date)
       
       // Check if target date falls within accommodation period (inclusive of check-in, exclusive of check-out)
       return targetDate >= checkInDate && targetDate < checkOutDate
     })
-  }, [accommodations])
+  }, [itinerary?.accommodations])
 
   // Function to get accommodation status for a specific date
   const getAccommodationStatusForDate = useCallback((date: string) => {
-    const relevantAccommodations = accommodations.filter(accommodation => {
-      if (!accommodation.checkIn || !accommodation.nights) return false
+    if (!itinerary?.accommodations) {
+      return { status: 'none', totalGuests: 0, memberCount: itinerary?.members?.length || 1 }
+    }
+    
+    const relevantAccommodations = itinerary.accommodations.filter((accommodation: any) => {
+      if (!accommodation.checkIn) return false
       
+      // Handle both Date objects and timestamps
       const checkInDate = new Date(accommodation.checkIn)
-      const checkOutDate = new Date(checkInDate.getTime() + accommodation.nights * 24 * 60 * 60 * 1000)
+      const checkOutDate = accommodation.checkOut ? new Date(accommodation.checkOut) : new Date(checkInDate.getTime() + (accommodation.nights || 1) * 24 * 60 * 60 * 1000)
       const targetDate = new Date(date)
       
       // Check if target date falls within accommodation period (inclusive of check-in, exclusive of check-out)
@@ -472,7 +495,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       return { status: 'none', totalGuests: 0, memberCount: itinerary?.members?.length || 1 }
     }
 
-    const totalGuests = relevantAccommodations.reduce((total, accommodation) => total + (accommodation.guests || 0), 0)
+    const totalGuests = relevantAccommodations.reduce((total: number, accommodation: any) => total + (accommodation.guests || 0), 0)
     const tripMemberCount = itinerary?.members?.length || 1
     
     if (totalGuests >= tripMemberCount) {
@@ -482,178 +505,158 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     } else {
       return { status: 'none', totalGuests: 0, memberCount: tripMemberCount }
     }
-  }, [accommodations, itinerary?.members?.length])
+  }, [itinerary?.accommodations, itinerary?.members?.length])
 
 
-  // Helper function to check for changes between old and new itinerary data
-  const checkForChanges = useCallback((oldData: any, newData: any) => {
-    // Check for basic property changes
-    if (
-      oldData.title !== newData.title ||
-      oldData.description !== newData.description ||
-      oldData.destination !== newData.destination ||
-      oldData.startDate !== newData.startDate ||
-      oldData.endDate !== newData.endDate
-    ) {
-      return true
-    }
-
-    // Check for member changes
-    if (oldData.members.length !== newData.members.length) return true
-    for (let i = 0; i < oldData.members.length; i++) {
+  // Deep comparison function to detect actual data changes with strict delta-based approach
+  const compareItineraryData = useCallback((oldData: any, newData: any): boolean => {
+    if (!oldData || !newData) return true
+    
+    // Compare basic properties
+    const basicPropsChanged = [
+      'title', 'description', 'destination', 'startDate', 'endDate'
+    ].some(prop => oldData[prop] !== newData[prop])
+    
+    if (basicPropsChanged) return true
+    
+    // Compare members with deep equality for maximum accuracy
+    if (oldData.members?.length !== newData.members?.length) return true
+    for (let i = 0; i < (oldData.members?.length || 0); i++) {
       const oldMember = oldData.members[i]
       const newMember = newData.members[i]
-      if (
-        oldMember.user.id !== newMember.user.id ||
-        oldMember.role !== newMember.role
-      ) {
+      if (JSON.stringify(oldMember) !== JSON.stringify(newMember)) {
         return true
       }
     }
-
-    // Check for day/activity changes
-    if (oldData.days.length !== newData.days.length) return true
-    for (let i = 0; i < oldData.days.length; i++) {
+    
+    // Compare days and activities with deep equality to catch all changes
+    if (oldData.days?.length !== newData.days?.length) return true
+    for (let i = 0; i < (oldData.days?.length || 0); i++) {
       const oldDay = oldData.days[i]
       const newDay = newData.days[i]
       
-      if (oldDay.activities.length !== newDay.activities.length) return true
+      // Compare day properties
+      if (oldDay.id !== newDay.id || oldDay.date !== newDay.date) return true
       
-      for (let j = 0; j < oldDay.activities.length; j++) {
-        const oldActivity = oldDay.activities[j]
-        const newActivity = newDay.activities[j]
-        
-        if (
-          oldActivity.id !== newActivity.id ||
-          oldActivity.title !== newActivity.title ||
-          oldActivity.description !== newActivity.description ||
-          oldActivity.votes?.length !== newActivity.votes?.length ||
-          oldActivity.comments?.length !== newActivity.comments?.length
-        ) {
-          return true
-        }
-
-        // Check for vote content changes (e.g., upvote to downvote)
-        if (oldActivity.votes?.length === newActivity.votes?.length) {
-          for (let k = 0; k < oldActivity.votes.length; k++) {
-            const oldVote = oldActivity.votes[k]
-            const newVote = newActivity.votes.find((v: any) => v.userId === oldVote.userId)
-            if (!newVote || oldVote.type !== newVote.type) {
-              return true
-            }
-          }
-        }
+      // Deep compare activities (more reliable than individual property checks)
+      if (JSON.stringify(oldDay.activities || []) !== JSON.stringify(newDay.activities || [])) {
+        return true
       }
     }
-
+    
+    // Compare comments with deep equality
+    if (JSON.stringify(oldData.comments || []) !== JSON.stringify(newData.comments || [])) {
+      return true
+    }
+    
     return false
   }, [])
 
-  // Load itinerary
-  const fetchItinerary = useCallback(async (id: string, isBackgroundUpdate = false) => {
+  // Separate functions for initial load vs background updates to eliminate any chance of day switching
+  const loadItineraryInitial = useCallback(async (id: string) => {
     try {
-      // Only show loading/refreshing indicators appropriately
-      if (!itinerary) {
-        // Initial load
-      } else if (!isBackgroundUpdate) {
-        setIsRefreshing(true)
-      }
-
       const response = await fetch(`/api/itineraries/${id}`)
       if (response.ok) {
-        const newData = await response.json()
+        const data = await response.json()
+        setItinerary(data)
         
-        // If this is a background update, only update if there are actual changes
-        if (isBackgroundUpdate && itinerary) {
-          const hasChanges = checkForChanges(itinerary, newData)
-          if (hasChanges) {
-            setItinerary(newData)
-            // For background updates, ABSOLUTELY NEVER change the selected day
-            // The user's current view should be completely preserved
-            // Even if the selected day no longer exists, maintain the user's context
-            // They can manually navigate if needed - don't disrupt their experience
-          }
-        } else {
-          setItinerary(newData)
-          // For non-background updates (initial load, manual refresh), preserve selected day or set to first day
-          const currentSelectedDay = selectedDay
-          if (currentSelectedDay && newData.days.some((day: any) => day.id === currentSelectedDay)) {
-            // Keep current selection if it still exists - no URL update needed
-          } else {
-            // Only set default day if we don't have a selected day yet
-            // This prevents resetting the day selection during non-background updates
-            if (!currentSelectedDay && newData.days.length > 0) {
-              const newSelectedDay = newData.days[0].id
-              updateSelectedDay(newSelectedDay)
-            }
-          }
+        // Only auto-select first day on true initial load (no existing itinerary and no selected day)
+        if (!selectedDay && data.days?.length > 0) {
+          const firstDayId = data.days[0].id
+          updateSelectedDay(firstDayId)
         }
       } else if (response.status === 401) {
         router.push('/login')
       }
     } catch (error) {
-      console.error('Error fetching itinerary:', error)
-      if (!itinerary) {
-        router.push('/')
-      }
-    } finally {
-      setIsRefreshing(false)
+      console.error('Error loading itinerary:', error)
+      router.push('/')
     }
-  }, [router, checkForChanges])
-
-  // Load accommodations from localStorage (API route doesn't exist yet)
-  const loadAccommodations = useCallback(async (itineraryId: string) => {
+  }, [router, selectedDay, updateSelectedDay])
+  
+  const updateItineraryIfChanged = useCallback(async (id: string) => {
+    if (!itinerary) return // Only run background updates if we already have data
+    
     try {
-      // Load directly from localStorage since API route doesn't exist
-      const savedAccommodations = localStorage.getItem(`accommodations-${itineraryId}`)
-      if (savedAccommodations) {
-        try {
-          const parsedAccommodations = JSON.parse(savedAccommodations)
-          setAccommodations(parsedAccommodations)
-        } catch (parseError) {
-          console.error('Error parsing saved accommodations:', parseError)
-          setAccommodations([])
+      const response = await fetch(`/api/itineraries/${id}`)
+      if (response.ok) {
+        const newData = await response.json()
+        
+        // CRITICAL: Only update state if there are actual changes
+        // This prevents unnecessary re-renders and maintains user context
+        const hasChanges = compareItineraryData(itinerary, newData)
+        if (hasChanges) {
+          // Update itinerary data but NEVER EVER touch day selection
+          // The user's current view is sacred and must be preserved at all costs
+          setItinerary(newData)
         }
-      } else {
-        setAccommodations([])
+        // If no changes detected, do absolutely nothing - don't even log
       }
     } catch (error) {
-      console.error('Error loading accommodations:', error)
-      setAccommodations([])
+      // Silently fail background updates to avoid disrupting user experience
+      console.warn('Background update failed:', error)
     }
-  }, [])
+  }, [itinerary, compareItineraryData])
+
 
   useEffect(() => {
-    if (resolvedParams.id) {
-      fetchItinerary(resolvedParams.id as string)
-      loadAccommodations(resolvedParams.id as string)
+    if (resolvedParams.id && !itinerary) {
+      loadItineraryInitial(resolvedParams.id as string)
     }
-  }, [resolvedParams.id]) // Only depend on resolvedParams.id
+  }, [resolvedParams.id, itinerary, loadItineraryInitial])
 
   // Handle URL parameter changes (browser navigation)
   useEffect(() => {
     const dayFromUrl = searchParams.get('day')
     // Only update selectedDay from URL if there's an actual change
     // and we're not currently programmatically updating the URL ourselves
-    if (dayFromUrl !== selectedDay && !isUpdatingUrlRef.current) {
+    // Also prevent changes during active polling to avoid mobile reset issues
+    if (dayFromUrl !== selectedDay && !isUpdatingUrlRef.current && !isRefreshing) {
       setSelectedDay(dayFromUrl)
     }
-  }, [searchParams, selectedDay])
+  }, [searchParams, selectedDay, isRefreshing])
 
-  // Polling effect to refresh data every 5 seconds
+  // Fetch accommodation for the selected day from backend
   useEffect(() => {
-    if (!resolvedParams.id || !session) return
+    const fetchAccommodationForDay = async () => {
+      if (!selectedDayData || !resolvedParams.id) {
+        setMapAccommodation(null)
+        return
+      }
+      
+      try {
+        const response = await fetch(`/api/itineraries/${resolvedParams.id}/accommodations?date=${selectedDayData.date}`)
+        if (response.ok) {
+          const data = await response.json()
+          setMapAccommodation(data.accommodation)
+        } else {
+          setMapAccommodation(null)
+        }
+      } catch (error) {
+        console.error('Error fetching accommodation for day:', error)
+        setMapAccommodation(null)
+      }
+    }
+    
+    fetchAccommodationForDay()
+  }, [selectedDayData, resolvedParams.id])
+
+  // Background polling with strict delta-based updates - NEVER affects day selection
+  useEffect(() => {
+    if (!resolvedParams.id || !session || !itinerary) return
 
     const interval = setInterval(() => {
-      // Only poll if user is not actively interacting with the page and tab is visible
-      // Background polling should NEVER affect navigation state or user position
+      // Only poll if:
+      // 1. User is not actively interacting with the page
+      // 2. Tab is visible 
+      // 3. We have existing itinerary data to compare against
       if (!showAddActivity && !isSubmittingComment && !isDeletingActivity && !document.hidden) {
-        fetchItinerary(resolvedParams.id as string, true) // true = background update (no navigation changes)
+        updateItineraryIfChanged(resolvedParams.id as string)
       }
-    }, 5000) // Poll every 5 seconds
+    }, 5000)
 
     return () => clearInterval(interval)
-  }, [resolvedParams.id, session?.user?.id, showAddActivity, isSubmittingComment, isDeletingActivity]) // Include all polling conditions
+  }, [resolvedParams.id, session?.user?.id, itinerary, showAddActivity, isSubmittingComment, isDeletingActivity, updateItineraryIfChanged])
 
   // Event handlers
   const handleVote = useCallback(async (activityId: string, type: 'up' | 'down') => {
@@ -708,17 +711,17 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
 
       if (!response.ok) {
         // Revert optimistic update on error
-        await fetchItinerary(resolvedParams.id as string, true)
+        await updateItineraryIfChanged(resolvedParams.id as string)
         const error = await response.json()
         console.error('Error voting:', error)
       }
       // Don't fetch on success - the optimistic update is already applied
     } catch (error) {
       // Revert optimistic update on error
-      await fetchItinerary(resolvedParams.id as string, true)
+      await updateItineraryIfChanged(resolvedParams.id as string)
       console.error('Error voting:', error)
     }
-  }, [session?.user?.id, resolvedParams.id, itinerary, fetchItinerary])
+  }, [session?.user?.id, resolvedParams.id, itinerary, updateItineraryIfChanged])
 
   const handleToggleComments = useCallback((activityId: string) => {
     setShowComments(showComments === activityId ? null : activityId)
@@ -773,7 +776,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       if (!response.ok) {
         // Revert optimistic update and restore comment text on error
         setNewComment(commentContent)
-        await fetchItinerary(resolvedParams.id as string, true)
+        await updateItineraryIfChanged(resolvedParams.id as string)
         const error = await response.json()
         alert(error.error || 'Failed to add comment. Please try again.')
       }
@@ -781,13 +784,13 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     } catch (error) {
       // Revert optimistic update and restore comment text on error
       setNewComment(commentContent)
-      await fetchItinerary(resolvedParams.id as string, true)
+      await updateItineraryIfChanged(resolvedParams.id as string)
       console.error('Error adding comment:', error)
       alert('Failed to add comment. Please try again.')
     } finally {
       setIsSubmittingComment(false)
     }
-  }, [newComment, session?.user?.id, resolvedParams.id, itinerary, fetchItinerary])
+  }, [newComment, session?.user?.id, resolvedParams.id, itinerary, updateItineraryIfChanged])
 
   const handleDeleteActivity = useCallback(async (activityId: string) => {
     if (!confirm('Are you sure you want to delete this activity?')) return
@@ -815,20 +818,20 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
 
       if (!response.ok) {
         // Revert optimistic update on error
-        await fetchItinerary(resolvedParams.id as string, true)
+        await updateItineraryIfChanged(resolvedParams.id as string)
         const error = await response.json()
         alert(error.error || 'Failed to delete activity. Please try again.')
       }
       // Don't fetch on success - optimistic update is already applied
     } catch (error) {
       // Revert optimistic update on error
-      await fetchItinerary(resolvedParams.id as string, true)
+      await updateItineraryIfChanged(resolvedParams.id as string)
       console.error('Error deleting activity:', error)
       alert('Failed to delete activity. Please try again.')
     } finally {
       setIsDeletingActivity(false)
     }
-  }, [session?.user?.id, resolvedParams.id, itinerary, fetchItinerary])
+  }, [session?.user?.id, resolvedParams.id, itinerary, updateItineraryIfChanged])
 
   const handleAddActivity = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
@@ -875,7 +878,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
           cost: '',
           isGroupActivity: true
         })
-        await fetchItinerary(resolvedParams.id as string, true)
+        await updateItineraryIfChanged(resolvedParams.id as string)
       } else {
         const errorData = await response.json()
         if (response.status === 401) {
@@ -891,7 +894,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       console.error('Error adding activity:', error)
       alert('Failed to add activity due to a network error. Please check your connection and try again.')
     }
-  }, [selectedDay, newActivity, resolvedParams.id, session?.user?.id, fetchItinerary])
+  }, [selectedDay, newActivity, resolvedParams.id, session?.user?.id, updateItineraryIfChanged])
 
   const handleUpdateActivity = useCallback(async (updatedActivity: Activity) => {
     if (!session?.user?.id) {
@@ -919,7 +922,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
 
       if (response.ok) {
         setEditingActivity(null)
-        await fetchItinerary(resolvedParams.id as string, true)
+        await updateItineraryIfChanged(resolvedParams.id as string)
       } else {
         const errorData = await response.json()
         if (response.status === 401) {
@@ -935,7 +938,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       console.error('Error updating activity:', error)
       alert('Failed to update activity due to a network error. Please check your connection and try again.')
     }
-  }, [session?.user?.id, resolvedParams.id, fetchItinerary])
+  }, [session?.user?.id, resolvedParams.id, updateItineraryIfChanged])
 
   const updateMemberRole = useCallback(async (userId: string, role: 'admin' | 'member') => {
     if (!session?.user?.id || !isAdmin) {
@@ -951,7 +954,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       })
 
       if (response.ok) {
-        await fetchItinerary(resolvedParams.id as string, true)
+        await updateItineraryIfChanged(resolvedParams.id as string)
       } else {
         const errorData = await response.json()
         if (response.status === 401) {
@@ -967,7 +970,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       console.error('Error updating member role:', error)
       alert('Failed to update member role due to a network error. Please try again.')
     }
-  }, [resolvedParams.id, session?.user?.id, isAdmin, fetchItinerary])
+  }, [resolvedParams.id, session?.user?.id, isAdmin, updateItineraryIfChanged])
 
   const removeMember = useCallback(async (userId: string) => {
     if (!session?.user?.id || !isAdmin) {
@@ -983,7 +986,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       })
 
       if (response.ok) {
-        await fetchItinerary(resolvedParams.id as string, true)
+        await updateItineraryIfChanged(resolvedParams.id as string)
       } else {
         const errorData = await response.json()
         if (response.status === 401) {
@@ -999,7 +1002,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       console.error('Error removing member:', error)
       alert('Failed to remove member due to a network error. Please try again.')
     }
-  }, [resolvedParams.id, session?.user?.id, isAdmin, fetchItinerary])
+  }, [resolvedParams.id, session?.user?.id, isAdmin, updateItineraryIfChanged])
 
 
 
@@ -1100,24 +1103,27 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
         {/* Right Side - 60% - Map (Hidden on small screens) */}
         <div className="hidden xl:block xl:w-3/5 h-full">
           <MapSection
+            key={mapKey}
             activities={mapActivities}
             selectedDay={selectedDay}
-            hasSelectedDay={!!selectedDayData}
-            accommodationLocation={selectedDayData ? getAccommodationForDate(selectedDayData.date)?.location : undefined}
+            hasSelectedDay={mapActivities.length > 0}
+            accommodationLocation={stableAccommodationLocation}
           />
         </div>
       </div>
 
-      {/* Mobile Map Modal */}
-      {showMap && selectedDayData && (
-        <ActivitiesMap
-          activities={selectedDayData.activities}
-          selectedDay={selectedDay || undefined}
-          onClose={() => setShowMap(false)}
-          isModal={true}
-          accommodationLocation={getAccommodationForDate(selectedDayData.date)?.location}
+      {/* Mobile Map Modal - Always mounted but hidden when not shown to prevent re-mounting */}
+      <div className={showMap ? 'block' : 'hidden'}>
+        <MapSection
+          key={mapKey}
+          activities={mapActivities}
+          selectedDay={selectedDay}
+          hasSelectedDay={mapActivities.length > 0}
+          accommodationLocation={stableAccommodationLocation}
+          isMobile={true}
+          onClose={handleMapClose}
         />
-      )}
+      </div>
 
       {/* Add Activity Modal */}
       <AddActivityModal

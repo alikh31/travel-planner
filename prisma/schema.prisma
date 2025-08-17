@@ -72,10 +72,31 @@ model Itinerary {
   endDate     DateTime
   createdBy   String
   
-  creator User            @relation("CreatedBy", fields: [createdBy], references: [id])
-  members GroupMember[]
-  days    Day[]
+  creator        User            @relation("CreatedBy", fields: [createdBy], references: [id])
+  members        GroupMember[]
+  days           Day[]
+  accommodations Accommodation[]
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Accommodation {
+  id          String   @id @default(cuid())
+  itineraryId String
+  name        String
+  location    String
+  checkIn     DateTime
+  checkOut    DateTime
+  nights      Int
+  guests      Int      @default(1)
+  cost        Float?
+  notes       String?
+  bookingRef  String?
+  photoUrl    String?
+  
+  itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
