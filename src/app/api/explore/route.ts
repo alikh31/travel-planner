@@ -173,59 +173,39 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
       }, { status: 200 })
     }
 
-    console.log('Attempting Google Places search with', gptSuggestions.length, 'suggestions for', itinerary.destination)
+    console.log('Starting Google Places search with', gptSuggestions.length, 'suggestions for', itinerary.destination)
 
-    // Try a simple test request first
-    const testUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=restaurant+in+${encodeURIComponent(itinerary.destination)}&key=${googleApiKey}`
-    const testResponse = await fetch(testUrl)
-    const testData = await testResponse.json()
-    
-    console.log('Test API response:', testData.status, testData.error_message || 'OK')
-    
-    // If API key has restrictions, return suggestions only and let frontend handle places
-    if (testData.status === 'REQUEST_DENIED') {
-      console.log('Google Places API has domain restrictions. Returning suggestions only.')
-      return NextResponse.json({
-        suggestions: gptSuggestions,
-        places: {
-          restaurants: [],
-          cafes: [],
-          bars: [],
-          attractions: [],
-          shopping: [],
-          nature: [],
-          culture: []
-        },
-        itinerary: {
-          id: itinerary.id,
-          title: itinerary.title,
-          destination: itinerary.destination,
-          startDate: itinerary.startDate,
-          endDate: itinerary.endDate
-        },
-        day: targetDay ? {
-          id: targetDay.id,
-          date: targetDay.date,
-          activities: targetDay.activities
-        } : null,
-        // Include this flag so frontend knows to search for places
-        needsClientSidePlacesSearch: true
-      })
-    }
-
-    // If API works, proceed with original logic
     const allPlaces: any[] = []
-    const placeTypes = ['restaurant', 'cafe', 'bar', 'tourist_attraction', 'museum', 'shopping_mall', 'park', 'church']
+    const placeTypes = [
+      'restaurant',
+      'cafe', 
+      'bar',
+      'tourist_attraction',
+      'museum',
+      'shopping_mall',
+      'park',
+      'church'
+    ]
 
-    // Search for GPT suggestions  
+    // Search for GPT suggestions
     for (const suggestion of gptSuggestions) {
       try {
         const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(suggestion + ' ' + itinerary.destination)}&key=${googleApiKey}`
+        console.log(`Searching for: "${suggestion}" in ${itinerary.destination}`)
         const response = await fetch(searchUrl)
         const data = await response.json()
         
+        console.log(`Google API response status for "${suggestion}":`, data.status, 'Results:', data.results?.length || 0)
+        
+        if (data.status === 'REQUEST_DENIED') {
+          console.error('Google Places API request denied:', data.error_message)
+          break
+        }
+        
         if (data.results && data.results.length > 0) {
+          // Take the first result for each suggestion
           const place = data.results[0]
+          console.log(`Found place for "${suggestion}":`, place.name)
           allPlaces.push({
             place_id: place.place_id,
             name: place.name,
@@ -246,14 +226,24 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
       }
     }
 
-    // Search by category
+    // Search by category to fill out the results
+    console.log('Searching by categories:', placeTypes)
     for (const type of placeTypes) {
       try {
         const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(itinerary.destination)}&type=${type}&key=${googleApiKey}`
+        console.log(`Searching for type "${type}" in ${itinerary.destination}`)
         const response = await fetch(searchUrl)
         const data = await response.json()
         
+        console.log(`Google API response for type "${type}":`, data.status, 'Results:', data.results?.length || 0)
+        
+        if (data.status === 'REQUEST_DENIED') {
+          console.error('Google Places API request denied for category search:', data.error_message)
+          break
+        }
+        
         if (data.results && data.results.length > 0) {
+          // Take top 3 results per category
           const categoryPlaces = data.results.slice(0, 3).map((place: any) => ({
             place_id: place.place_id,
             name: place.name,
@@ -267,6 +257,8 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
             types: place.types,
             source: 'category_search'
           }))
+          
+          console.log(`Added ${categoryPlaces.length} places for type "${type}"`)
           allPlaces.push(...categoryPlaces)
         }
       } catch (error) {
@@ -275,7 +267,9 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
       }
     }
 
-    // Remove duplicates and categorize
+    console.log('Total places found before deduplication:', allPlaces.length)
+    
+    // Remove duplicates based on place_id
     const uniquePlaces = allPlaces.reduce((acc: any[], place) => {
       if (!acc.find((p: any) => p.place_id === place.place_id)) {
         acc.push(place)
@@ -283,6 +277,9 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
       return acc
     }, [])
 
+    console.log('Unique places after deduplication:', uniquePlaces.length)
+
+    // Categorize places
     const categorizedPlaces = {
       restaurants: uniquePlaces.filter((place: any) => 
         place.types?.some((type: string) => ['restaurant', 'food', 'meal_takeaway'].includes(type))

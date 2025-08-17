@@ -178,17 +178,11 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         // Set GPT suggestions
         setGptSuggestions(data.suggestions || [])
         
-        // If backend couldn't search places due to API restrictions, do it on frontend
-        if (data.needsClientSidePlacesSearch) {
-          console.log('Backend API has restrictions, performing client-side places search')
-          await searchPlacesClientSide(data.suggestions || [], data.itinerary?.destination || '')
-        } else {
-          // Update categories with places from backend
-          setCategories(prev => prev.map(cat => ({
-            ...cat,
-            places: data.places?.[cat.id] || []
-          })))
-        }
+        // Update categories with places
+        setCategories(prev => prev.map(cat => ({
+          ...cat,
+          places: data.places?.[cat.id] || []
+        })))
         
       } else {
         console.error('Failed to explore places')
@@ -209,92 +203,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     explorePlaces(resolvedParams.id, selectedDay || undefined)
   }
 
-  const searchPlacesClientSide = async (suggestions: string[], destination: string) => {
-    try {
-      console.log('Searching for places client-side for:', destination)
-      
-      // Search for each GPT suggestion
-      const allPlaces: Place[] = []
-      
-      for (const suggestion of suggestions) {
-        try {
-          const response = await fetch('/api/places/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: `${suggestion} ${destination}`,
-              maxResults: 1
-            })
-          })
-          
-          if (response.ok) {
-            const data = await response.json()
-            if (data.places && data.places.length > 0) {
-              allPlaces.push(...data.places)
-            }
-          }
-        } catch (error) {
-          console.error(`Error searching for ${suggestion}:`, error)
-          continue
-        }
-      }
-
-      // Search by category for general places
-      const categorySearches = [
-        { query: `restaurants in ${destination}`, types: ['restaurant', 'food'] },
-        { query: `cafes in ${destination}`, types: ['cafe', 'coffee_shop'] },
-        { query: `bars in ${destination}`, types: ['bar', 'pub'] },
-        { query: `attractions in ${destination}`, types: ['tourist_attraction', 'museum'] },
-        { query: `shopping in ${destination}`, types: ['shopping_mall', 'store'] },
-        { query: `parks in ${destination}`, types: ['park'] },
-        { query: `temples in ${destination}`, types: ['church', 'temple'] }
-      ]
-
-      for (const categorySearch of categorySearches) {
-        try {
-          const response = await fetch('/api/places/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: categorySearch.query,
-              maxResults: 3
-            })
-          })
-          
-          if (response.ok) {
-            const data = await response.json()
-            if (data.places && data.places.length > 0) {
-              allPlaces.push(...data.places)
-            }
-          }
-        } catch (error) {
-          console.error(`Error searching for ${categorySearch.query}:`, error)
-          continue
-        }
-      }
-
-      // Remove duplicates
-      const uniquePlaces = allPlaces.reduce((acc: Place[], place) => {
-        if (!acc.find(p => p.place_id === place.place_id)) {
-          acc.push(place)
-        }
-        return acc
-      }, [])
-
-      console.log('Found', uniquePlaces.length, 'unique places client-side')
-
-      // Categorize places
-      setCategories(prev => prev.map(cat => ({
-        ...cat,
-        places: uniquePlaces.filter(place => 
-          place.types?.some(type => cat.types.includes(type)) || false
-        )
-      })))
-
-    } catch (error) {
-      console.error('Error in client-side places search:', error)
-    }
-  }
 
   const getAllPlaces = () => {
     const allPlaces = new Map<string, Place>()
