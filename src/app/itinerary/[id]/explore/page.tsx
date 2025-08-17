@@ -16,7 +16,11 @@ import {
   Loader2,
   Star,
   DollarSign,
-  RefreshCw
+  RefreshCw,
+  Gamepad2,
+  Waves,
+  Palette,
+  Film
 } from 'lucide-react'
 import TripHeader from '@/components/TripHeader'
 
@@ -63,13 +67,14 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   const [loadingExplore, setLoadingExplore] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
+  const [showAllPlaces, setShowAllPlaces] = useState(false)
   
   const [categories, setCategories] = useState<ExploreCategory[]>([
     {
       id: 'restaurants',
       name: 'Restaurants',
       icon: Utensils,
-      types: ['restaurant', 'food'],
+      types: ['restaurant', 'food', 'meal_takeaway'],
       places: [],
       loading: false
     },
@@ -93,7 +98,31 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       id: 'attractions',
       name: 'Attractions',
       icon: Camera,
-      types: ['tourist_attraction', 'museum', 'art_gallery', 'amusement_park', 'zoo', 'aquarium'],
+      types: ['tourist_attraction', 'museum', 'amusement_park', 'zoo', 'aquarium'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'arts',
+      name: 'Arts & Culture',
+      icon: Palette,
+      types: ['art_gallery', 'library', 'theater'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'entertainment',
+      name: 'Entertainment',
+      icon: Film,
+      types: ['movie_theater', 'bowling_alley', 'casino'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'wellness',
+      name: 'Health & Wellness',
+      icon: Waves,
+      types: ['spa', 'gym', 'beauty_salon'],
       places: [],
       loading: false
     },
@@ -101,7 +130,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       id: 'shopping',
       name: 'Shopping',
       icon: ShoppingBag,
-      types: ['shopping_mall', 'store', 'market'],
+      types: ['shopping_mall', 'store', 'market', 'clothing_store'],
       places: [],
       loading: false
     },
@@ -115,9 +144,9 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     },
     {
       id: 'culture',
-      name: 'Culture & History',
+      name: 'Religious & Historic',
       icon: Landmark,
-      types: ['church', 'hindu_temple', 'mosque', 'synagogue', 'library', 'city_hall', 'monument'],
+      types: ['church', 'hindu_temple', 'mosque', 'synagogue', 'city_hall', 'monument'],
       places: [],
       loading: false
     }
@@ -296,9 +325,11 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     )
   }
 
-  const displayPlaces = selectedCategory === 'all' 
+  const allDisplayPlaces = selectedCategory === 'all' 
     ? getAllPlaces() 
     : categories.find(cat => cat.id === selectedCategory)?.places || []
+  
+  const displayPlaces = showAllPlaces ? allDisplayPlaces : allDisplayPlaces.slice(0, 12)
 
   const isAdmin = session?.user?.id ? 
     itinerary?.members?.some((m: any) => m.user.id === session.user.id && m.role === 'admin') || 
@@ -394,7 +425,10 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         {/* Category Tabs */}
         <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
           <button
-            onClick={() => setSelectedCategory('all')}
+            onClick={() => {
+              setSelectedCategory('all')
+              setShowAllPlaces(false)
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
               selectedCategory === 'all'
                 ? 'bg-sunset-coral-600 text-white'
@@ -410,7 +444,10 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
             return (
               <button
                 key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
+                onClick={() => {
+                  setSelectedCategory(category.id)
+                  setShowAllPlaces(false)
+                }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
                   selectedCategory === category.id
                     ? 'bg-sunset-coral-600 text-white'
@@ -440,11 +477,34 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
             <span className="ml-2 text-gray-600">Searching for places...</span>
           </div>
         ) : displayPlaces.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {displayPlaces.map(place => (
-              <PlaceCard key={place.place_id} place={place} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {displayPlaces.map(place => (
+                <PlaceCard key={place.place_id} place={place} />
+              ))}
+            </div>
+            
+            {/* Show More Button */}
+            {allDisplayPlaces.length > 12 && (
+              <div className="text-center mt-8">
+                {!showAllPlaces ? (
+                  <button
+                    onClick={() => setShowAllPlaces(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-sunset-coral-600 text-white rounded-lg hover:bg-sunset-coral-700 transition-colors"
+                  >
+                    Show More Places ({allDisplayPlaces.length - 12} more)
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowAllPlaces(false)}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Show Less
+                  </button>
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12">
             <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />

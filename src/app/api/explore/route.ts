@@ -121,15 +121,19 @@ export async function POST(request: NextRequest) {
 
     prompt += `
 
-Please suggest 8-10 specific places to visit in ${itinerary.destination} including:
+Please suggest 15-20 specific places to visit in ${itinerary.destination} including:
 - Restaurants and cafes with local cuisine
 - Bars and nightlife venues  
 - Tourist attractions and museums
 - Shopping areas and markets
 - Parks and nature spots
 - Cultural and historical sites
+- Entertainment venues and experiences
+- Local markets and food halls
+- Viewpoints and observation decks
+- Historic neighborhoods and districts
 
-Focus on highly-rated, popular places that tourists love. Return only the place names, one per line, without numbers or bullet points.`
+Focus on highly-rated, popular places that tourists love. Include both must-see landmarks and hidden gems. Return only the place names, one per line, without numbers or bullet points.`
 
     // Get GPT suggestions
     let gptSuggestions: string[] = []
@@ -146,7 +150,7 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
             content: prompt
           }
         ],
-        max_tokens: 500,
+        max_tokens: 800,
         temperature: 0.7,
       })
 
@@ -183,8 +187,18 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
       'tourist_attraction',
       'museum',
       'shopping_mall',
+      'store',
       'park',
-      'church'
+      'church',
+      'amusement_park',
+      'zoo',
+      'aquarium',
+      'art_gallery',
+      'night_club',
+      'movie_theater',
+      'bowling_alley',
+      'spa',
+      'casino'
     ]
 
     // Search for GPT suggestions
@@ -238,13 +252,13 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
         console.log(`Google API response for type "${type}":`, data.status, 'Results:', data.results?.length || 0)
         
         if (data.status === 'REQUEST_DENIED') {
-          console.error('Google Places API request denied for category search:', data.error_message)
+          console.error('Google Places API request denied for category search:', data.error_message, googleApiKey)
           break
         }
         
         if (data.results && data.results.length > 0) {
-          // Take top 3 results per category
-          const categoryPlaces = data.results.slice(0, 3).map((place: any) => ({
+          // Take top 5 results per category
+          const categoryPlaces = data.results.slice(0, 5).map((place: any) => ({
             place_id: place.place_id,
             name: place.name,
             rating: place.rating,
@@ -263,6 +277,58 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
         }
       } catch (error) {
         console.error(`Error searching for ${type}:`, error)
+        continue
+      }
+    }
+
+    // Additional targeted searches for popular categories
+    const additionalSearches = [
+      `top restaurants in ${itinerary.destination}`,
+      `best cafes in ${itinerary.destination}`,
+      `popular attractions in ${itinerary.destination}`,
+      `shopping districts in ${itinerary.destination}`,
+      `nightlife in ${itinerary.destination}`,
+      `parks and gardens in ${itinerary.destination}`,
+      `museums in ${itinerary.destination}`,
+      `local markets in ${itinerary.destination}`
+    ]
+
+    console.log('Performing additional targeted searches')
+    for (const searchQuery of additionalSearches) {
+      try {
+        const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${googleApiKey}`
+        console.log(`Additional search: "${searchQuery}"`)
+        const response = await fetch(searchUrl)
+        const data = await response.json()
+        
+        console.log(`Additional search response for "${searchQuery}":`, data.status, 'Results:', data.results?.length || 0)
+        
+        if (data.status === 'REQUEST_DENIED') {
+          console.error('Google Places API request denied for additional search:', data.error_message)
+          break
+        }
+        
+        if (data.results && data.results.length > 0) {
+          // Take top 3 results per additional search
+          const searchPlaces = data.results.slice(0, 3).map((place: any) => ({
+            place_id: place.place_id,
+            name: place.name,
+            rating: place.rating,
+            user_ratings_total: place.user_ratings_total,
+            price_level: place.price_level,
+            vicinity: place.vicinity || place.formatted_address,
+            opening_hours: place.opening_hours,
+            photos: place.photos,
+            geometry: place.geometry,
+            types: place.types,
+            source: 'additional_search'
+          }))
+          
+          console.log(`Added ${searchPlaces.length} places from additional search`)
+          allPlaces.push(...searchPlaces)
+        }
+      } catch (error) {
+        console.error(`Error in additional search for ${searchQuery}:`, error)
         continue
       }
     }
@@ -291,7 +357,16 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
         place.types?.some((type: string) => ['bar', 'night_club', 'pub'].includes(type))
       ),
       attractions: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['tourist_attraction', 'museum', 'art_gallery', 'amusement_park', 'zoo', 'aquarium'].includes(type))
+        place.types?.some((type: string) => ['tourist_attraction', 'museum', 'amusement_park', 'zoo', 'aquarium'].includes(type))
+      ),
+      arts: uniquePlaces.filter((place: any) => 
+        place.types?.some((type: string) => ['art_gallery', 'library', 'theater'].includes(type))
+      ),
+      entertainment: uniquePlaces.filter((place: any) => 
+        place.types?.some((type: string) => ['movie_theater', 'bowling_alley', 'casino'].includes(type))
+      ),
+      wellness: uniquePlaces.filter((place: any) => 
+        place.types?.some((type: string) => ['spa', 'gym', 'beauty_salon'].includes(type))
       ),
       shopping: uniquePlaces.filter((place: any) => 
         place.types?.some((type: string) => ['shopping_mall', 'store', 'market', 'clothing_store'].includes(type))
@@ -300,7 +375,7 @@ Focus on highly-rated, popular places that tourists love. Return only the place 
         place.types?.some((type: string) => ['park', 'natural_feature', 'hiking_area', 'campground'].includes(type))
       ),
       culture: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['church', 'hindu_temple', 'mosque', 'synagogue', 'library', 'city_hall', 'monument'].includes(type))
+        place.types?.some((type: string) => ['church', 'hindu_temple', 'mosque', 'synagogue', 'city_hall', 'monument'].includes(type))
       ),
     }
 
