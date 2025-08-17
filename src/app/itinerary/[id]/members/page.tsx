@@ -186,7 +186,7 @@ export default function MembersPage({ params }: { params: Promise<{ id: string }
         itinerary={itinerary}
         session={session}
         isAdmin={isAdmin}
-        currentPage="Members"
+        currentPage="members"
         backUrl={`/itinerary/${resolvedParams.id}`}
       />
 

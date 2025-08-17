@@ -298,7 +298,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
         itinerary={itinerary}
         session={session}
         isAdmin={isAdmin}
-        currentPage="Accommodation"
+        currentPage="accommodation"
         backUrl={`/itinerary/${resolvedParams.id}`}
       />
 

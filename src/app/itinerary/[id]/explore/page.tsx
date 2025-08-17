@@ -1,481 +1,459 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
-import { useLocationExploration } from '@/lib/useLocationExploration'
-import { useChatGPT } from '@/lib/useChatGPT'
-import { MessageCircle, Send, Loader2, MapPin, Search } from 'lucide-react'
+import { useState, useEffect, use } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { 
+  MapPin, 
+  Utensils, 
+  Coffee, 
+  Beer, 
+  Camera,
+  ShoppingBag,
+  TreePine,
+  Landmark,
+  Sparkles,
+  Loader2,
+  Star,
+  DollarSign,
+  RefreshCw
+} from 'lucide-react'
+import TripHeader from '@/components/TripHeader'
 
-interface ChatMessage {
-  id: string
-  type: 'request' | 'response'
-  content: string
-  timestamp: Date
+interface Place {
+  place_id: string
+  name: string
+  rating?: number
+  user_ratings_total?: number
+  price_level?: number
+  vicinity?: string
+  opening_hours?: {
+    open_now?: boolean
+  }
+  photos?: Array<{
+    photo_reference: string
+  }>
+  geometry?: {
+    location: {
+      lat: number
+      lng: number
+    }
+  }
+  types?: string[]
+  distance?: number
 }
 
-export default function ExplorePage() {
-  const params = useParams()
-  const searchParams = useSearchParams()
-  const itineraryId = params.id as string
-  const selectedDay = searchParams.get('day') || '1'
+interface ExploreCategory {
+  id: string
+  name: string
+  icon: any
+  types: string[]
+  places: Place[]
+  loading: boolean
+}
+
+export default function ExplorePage({ params }: { params: Promise<{ id: string }> }) {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const resolvedParams = use(params)
   
-  const [message, setMessage] = useState('')
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
-  const [modelInfo, setModelInfo] = useState<string>('Loading...')
-  
-  // Itinerary data state
   const [itinerary, setItinerary] = useState<any>(null)
-  const [accommodations, setAccommodations] = useState<any[]>([])
-  const [itineraryLoading, setItineraryLoading] = useState(true)
-  const [itineraryData, setItineraryData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [gptSuggestions, setGptSuggestions] = useState<string[]>([])
+  const [loadingExplore, setLoadingExplore] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
   
-  // Location exploration state
-  const [mockPlacesData, setMockPlacesData] = useState('')
-  
-  const { sendMessage, loading: chatLoading, error: chatError } = useChatGPT()
-  const { exploreLocations, fetchItineraryData, loading: exploreLoading, error: exploreError } = useLocationExploration()
+  const [categories, setCategories] = useState<ExploreCategory[]>([
+    {
+      id: 'restaurants',
+      name: 'Restaurants',
+      icon: Utensils,
+      types: ['restaurant', 'food'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'cafes',
+      name: 'Cafes',
+      icon: Coffee,
+      types: ['cafe', 'coffee_shop', 'bakery'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'bars',
+      name: 'Bars & Nightlife',
+      icon: Beer,
+      types: ['bar', 'night_club', 'pub'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'attractions',
+      name: 'Attractions',
+      icon: Camera,
+      types: ['tourist_attraction', 'museum', 'art_gallery', 'amusement_park', 'zoo', 'aquarium'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'shopping',
+      name: 'Shopping',
+      icon: ShoppingBag,
+      types: ['shopping_mall', 'store', 'market'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'nature',
+      name: 'Nature & Parks',
+      icon: TreePine,
+      types: ['park', 'natural_feature', 'hiking_area', 'campground'],
+      places: [],
+      loading: false
+    },
+    {
+      id: 'culture',
+      name: 'Culture & History',
+      icon: Landmark,
+      types: ['church', 'hindu_temple', 'mosque', 'synagogue', 'library', 'city_hall', 'monument'],
+      places: [],
+      loading: false
+    }
+  ])
 
   useEffect(() => {
-    // Fetch model info from health check endpoint
-    fetch('/api/chatgpt')
-      .then(res => res.json())
-      .then(data => {
-        setModelInfo(data.openai_model || 'gpt-3.5-turbo')
-      })
-      .catch(() => {
-        setModelInfo('Unknown')
-      })
-  }, [])
+    if (status === 'unauthenticated') {
+      router.push('/')
+    }
+  }, [status, router])
 
   useEffect(() => {
-    // Fetch itinerary data from backend
-    const loadItineraryData = async () => {
-      try {
-        setItineraryLoading(true)
-        
-        // Fetch itinerary details from backend API
-        const itinData = await fetchItineraryData(itineraryId)
-        if (itinData) {
-          setItinerary(itinData)
-        }
+    fetchItinerary()
+  }, [resolvedParams.id])
 
-        // Still fetch accommodations from localStorage since they're not in DB yet
-        const accommodationData = localStorage.getItem(`accommodations-${itineraryId}`)
-        if (accommodationData) {
-          const parsedAccommodations = JSON.parse(accommodationData)
-          setAccommodations(parsedAccommodations)
-        }
-
-      } catch (error) {
-        console.error('Error fetching itinerary data:', error)
-      } finally {
-        setItineraryLoading(false)
-      }
-    }
-
-    loadItineraryData()
-  }, [itineraryId])
-
-  const handleSend = async () => {
-    if (!message.trim() || chatLoading) return
-
-    const requestId = Date.now().toString()
-    const requestMessage: ChatMessage = {
-      id: requestId,
-      type: 'request',
-      content: message,
-      timestamp: new Date()
-    }
-
-    setChatHistory(prev => [...prev, requestMessage])
-    const currentMessage = message
-    setMessage('')
-
+  const fetchItinerary = async () => {
     try {
-      const context = `User is exploring itinerary ${itineraryId} for day ${selectedDay}. Provide travel suggestions and information.`
-      const response = await sendMessage(currentMessage, context)
+      const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setItinerary(data)
+        // Set first day as default
+        if (data.days && data.days.length > 0) {
+          setSelectedDay(data.days[0].id)
+        }
+        // Automatically explore places when itinerary loads
+        explorePlaces(data.id, data.days?.[0]?.id)
+      } else {
+        console.error('Failed to fetch itinerary')
+      }
+    } catch (error) {
+      console.error('Error fetching itinerary:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const explorePlaces = async (itineraryId: string, dayId?: string) => {
+    setLoadingExplore(true)
+    setGptSuggestions([])
+    
+    // Reset categories
+    setCategories(prev => prev.map(cat => ({ ...cat, places: [] })))
+    
+    try {
+      const response = await fetch('/api/explore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itineraryId,
+          dayId
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Set GPT suggestions
+        setGptSuggestions(data.suggestions || [])
+        
+        // Update categories with places
+        setCategories(prev => prev.map(cat => ({
+          ...cat,
+          places: data.places?.[cat.id] || []
+        })))
+        
+      } else {
+        console.error('Failed to explore places')
+      }
+    } catch (error) {
+      console.error('Error exploring places:', error)
+    } finally {
+      setLoadingExplore(false)
+    }
+  }
+
+  const handleDayChange = (dayId: string) => {
+    setSelectedDay(dayId)
+    explorePlaces(resolvedParams.id, dayId)
+  }
+
+  const handleRefreshSuggestions = () => {
+    explorePlaces(resolvedParams.id, selectedDay || undefined)
+  }
+
+  const getAllPlaces = () => {
+    const allPlaces = new Map<string, Place>()
+    categories.forEach(cat => {
+      cat.places.forEach(place => {
+        allPlaces.set(place.place_id, place)
+      })
+    })
+    return Array.from(allPlaces.values())
+  }
+
+  const getPhotoUrl = (photoReference?: string) => {
+    if (!photoReference) return null
+    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+  }
+
+  const renderPriceLevel = (level?: number) => {
+    if (!level) return null
+    return (
+      <div className="flex items-center gap-0.5">
+        {[...Array(4)].map((_, i) => (
+          <DollarSign 
+            key={i}
+            className={`h-3 w-3 ${i < level ? 'text-green-600' : 'text-gray-300'}`}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  const PlaceCard = ({ place }: { place: Place }) => (
+    <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border border-gray-200">
+      {place.photos && place.photos[0] && getPhotoUrl(place.photos[0].photo_reference) && (
+        <div className="relative h-48 bg-gray-200 rounded-t-lg overflow-hidden">
+          <img
+            src={getPhotoUrl(place.photos[0].photo_reference) || ''}
+            alt={place.name}
+            className="w-full h-full object-cover"
+          />
+          {place.opening_hours && (
+            <div className={`absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium ${
+              place.opening_hours.open_now 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {place.opening_hours.open_now ? 'Open Now' : 'Closed'}
+            </div>
+          )}
+        </div>
+      )}
       
-      const responseMessage: ChatMessage = {
-        id: `${requestId}_response`,
-        type: 'response',
-        content: response,
-        timestamp: new Date()
-      }
-
-      setChatHistory(prev => [...prev, responseMessage])
-    } catch (err) {
-      const errorMessage: ChatMessage = {
-        id: `${requestId}_error`,
-        type: 'response',
-        content: `Error: ${err instanceof Error ? err.message : 'Unknown error occurred'}`,
-        timestamp: new Date()
-      }
-      setChatHistory(prev => [...prev, errorMessage])
-    }
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
-
-  const clearHistory = () => {
-    setChatHistory([])
-  }
-
-  // Phase 1: Get location search terms from GPT
-  const handleLocationDiscovery = async () => {
-    if (!itinerary || exploreLoading) return
-
-    const requestId = Date.now().toString()
-    
-    try {
-      // Call backend API for exploration phase
-      const response = await exploreLocations(
-        itineraryId, 
-        'exploration',
-        accommodations // Pass accommodations since they're in localStorage
-      )
-
-      if (response) {
-        setItineraryData(response.itineraryData)
+      <div className="p-4">
+        <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">{place.name}</h3>
         
-        // Add request to chat history
-        const requestMessage: ChatMessage = {
-          id: requestId,
-          type: 'request',
-          content: `PHASE 1 - LOCATION DISCOVERY\n\nSystem Prompt:\n${response.prompt[0].content}\n\nUser Message:\n${response.prompt[1].content}`,
-          timestamp: new Date()
-        }
-        setChatHistory(prev => [...prev, requestMessage])
+        <div className="flex items-center gap-3 mb-2">
+          {place.rating && (
+            <div className="flex items-center gap-1">
+              <Star className="h-4 w-4 text-yellow-500 fill-current" />
+              <span className="text-sm font-medium">{place.rating}</span>
+              {place.user_ratings_total && (
+                <span className="text-sm text-gray-500">({place.user_ratings_total})</span>
+              )}
+            </div>
+          )}
+          {renderPriceLevel(place.price_level)}
+        </div>
+        
+        {place.vicinity && (
+          <div className="flex items-start gap-1 text-sm text-gray-600">
+            <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+            <span className="line-clamp-2">{place.vicinity}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 
-        // Add response to chat history
-        const responseMessage: ChatMessage = {
-          id: `${requestId}_response`,
-          type: 'response',
-          content: `PHASE 1 RESPONSE - Search Terms:\n\n${response.response}`,
-          timestamp: new Date()
-        }
-        setChatHistory(prev => [...prev, responseMessage])
-      }
-
-    } catch (err) {
-      const errorMessage: ChatMessage = {
-        id: `${requestId}_error`,
-        type: 'response',
-        content: `Error in Phase 1: ${err instanceof Error ? err.message : 'Unknown error occurred'}`,
-        timestamp: new Date()
-      }
-      setChatHistory(prev => [...prev, errorMessage])
-    }
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cloud-white flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-sunset-coral-600" />
+      </div>
+    )
   }
 
-  // Phase 2: Get location recommendations from Places API results
-  const handleLocationRecommendations = async () => {
-    if (!itinerary || !mockPlacesData.trim() || exploreLoading) return
-
-    const requestId = Date.now().toString()
-    
-    try {
-      // Parse mock Places API data
-      let placesApiResults
-      try {
-        placesApiResults = JSON.parse(mockPlacesData)
-      } catch (parseError) {
-        throw new Error('Invalid JSON format in Places API data')
-      }
-
-      // Call backend API for recommendation phase
-      const response = await exploreLocations(
-        itineraryId,
-        'recommendation',
-        accommodations,
-        placesApiResults
-      )
-
-      if (response) {
-        // Add request to chat history
-        const requestMessage: ChatMessage = {
-          id: requestId,
-          type: 'request',
-          content: `PHASE 2 - LOCATION RECOMMENDATIONS\n\nSystem Prompt:\n${response.prompt[0].content}\n\nUser Message:\n${response.prompt[1].content}`,
-          timestamp: new Date()
-        }
-        setChatHistory(prev => [...prev, requestMessage])
-
-        // Add response to chat history
-        const responseMessage: ChatMessage = {
-          id: `${requestId}_response`,
-          type: 'response',
-          content: `PHASE 2 RESPONSE - Top 20 Recommendations:\n\n${response.response}`,
-          timestamp: new Date()
-        }
-        setChatHistory(prev => [...prev, responseMessage])
-      }
-
-    } catch (err) {
-      const errorMessage: ChatMessage = {
-        id: `${requestId}_error`,
-        type: 'response',
-        content: `Error in Phase 2: ${err instanceof Error ? err.message : 'Unknown error occurred'}`,
-        timestamp: new Date()
-      }
-      setChatHistory(prev => [...prev, errorMessage])
-    }
+  if (!itinerary) {
+    return (
+      <div className="min-h-screen bg-cloud-white flex items-center justify-center">
+        <p className="text-gray-600">Itinerary not found</p>
+      </div>
+    )
   }
+
+  const displayPlaces = selectedCategory === 'all' 
+    ? getAllPlaces() 
+    : categories.find(cat => cat.id === selectedCategory)?.places || []
+
+  const isAdmin = session?.user?.id ? 
+    itinerary?.members?.some((m: any) => m.user.id === session.user.id && m.role === 'admin') || 
+    itinerary?.createdBy === session.user.id : false
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <MessageCircle className="h-6 w-6 text-ocean-blue-600 mr-2" />
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">GPT Test Page</h1>
-                <p className="text-sm text-gray-500">
-                  Itinerary: {itineraryId} | Day: {selectedDay} | Model: {modelInfo}
-                </p>
-              </div>
+    <div className="min-h-screen bg-cloud-white">
+      <TripHeader 
+        itinerary={itinerary} 
+        session={session} 
+        isAdmin={isAdmin}
+        currentPage="explore" 
+      />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Day Selection & AI Suggestions Section */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-sunset-coral-600" />
+              <h2 className="text-lg font-semibold">AI Recommendations for {itinerary.destination}</h2>
             </div>
             <button
-              onClick={clearHistory}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={handleRefreshSuggestions}
+              disabled={loadingExplore}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-sunset-coral-600 text-white rounded-lg hover:bg-sunset-coral-700 disabled:opacity-50"
             >
-              Clear History
+              <RefreshCw className={`h-4 w-4 ${loadingExplore ? 'animate-spin' : ''}`} />
+              Refresh
             </button>
           </div>
 
-          {/* Location Exploration Controls */}
-          <div className="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
-            <h2 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
-              <MapPin className="h-5 w-5 mr-2" />
-              Location Exploration Flow
-            </h2>
-            
-            {/* Phase 1: Location Discovery */}
-            <div className="mb-6">
-              <h3 className="text-md font-medium text-blue-800 mb-3 flex items-center">
-                <Search className="h-4 w-4 mr-2" />
-                Phase 1: Location Discovery (Auto-populated from Database)
-              </h3>
-              
-              {itineraryLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                  <span className="ml-2 text-gray-600">Loading itinerary data...</span>
-                </div>
-              ) : (
-                <>
-                  {/* Display extracted itinerary data */}
-                  <div className="mb-4 p-4 bg-white rounded-lg border">
-                    <h4 className="font-medium text-gray-800 mb-3">Data from Backend:</h4>
-                    {itineraryData ? (
-                      <div className="space-y-3 text-sm">
-                        <div><strong>Destination:</strong> {itineraryData.destination}</div>
-                        <div><strong>Travel Dates:</strong> {itineraryData.travelDates}</div>
-                        <div><strong>Duration:</strong> {itineraryData.tripDuration}</div>
-                        <div><strong>Traveler Location:</strong> {itineraryData.userLocation}</div>
-                        <div><strong>Trip Type:</strong> {itineraryData.tripType}</div>
-                        <div><strong>Accommodation Details:</strong><br />
-                          <pre className="mt-1 text-xs font-mono bg-gray-50 p-2 rounded whitespace-pre-wrap">{itineraryData.accommodationDetails}</pre>
-                        </div>
-                        <div><strong>Current Activities:</strong><br />
-                          <pre className="mt-1 text-xs font-mono bg-gray-50 p-2 rounded whitespace-pre-wrap">{itineraryData.activityDetails}</pre>
-                        </div>
-                      </div>
-                    ) : itinerary ? (
-                      <p className="text-gray-600">Click &quot;Send to GPT&quot; to fetch and display itinerary data</p>
-                    ) : (
-                      <p className="text-red-600">Unable to load itinerary data</p>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleLocationDiscovery}
-                    disabled={exploreLoading || !itinerary}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
-                  >
-                    {exploreLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Search className="h-4 w-4" />
-                        Send to GPT-5-mini (Backend)
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Phase 2: Location Recommendations */}
-            <div className="border-t border-blue-300 pt-6">
-              <h3 className="text-md font-medium text-blue-800 mb-3 flex items-center">
-                <MapPin className="h-4 w-4 mr-2" />
-                Phase 2: Location Recommendations (Using database context + Places API data)
-              </h3>
-              
-              <div className="mb-4 p-4 bg-white rounded-lg border">
-                <h4 className="font-medium text-gray-800 mb-2">Context from Phase 1:</h4>
-                <p className="text-sm text-gray-600">
-                  This phase will use the same itinerary information from the database, plus the Google Places API results below, 
-                  to generate curated recommendations.
-                </p>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mock Google Places API Results (JSON format) *
-                </label>
-                <textarea
-                  value={mockPlacesData}
-                  onChange={(e) => setMockPlacesData(e.target.value)}
-                  placeholder='[{"name": "Louvre Museum", "rating": 4.6, "types": ["museum"], "vicinity": "Rue de Rivoli"}, {"name": "Seine River Cruise", "rating": 4.4, "types": ["tourist_attraction"], "vicinity": "Pont Neuf"}]'
-                  className="w-full h-32 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-mono"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Paste mock Google Places API results here. In a real implementation, this would come from the Google Places API using search terms from Phase 1.
-                </p>
-              </div>
-              
-              <div className="flex gap-2 items-center">
-                <button
-                  onClick={handleLocationRecommendations}
-                  disabled={exploreLoading || !itinerary || !mockPlacesData.trim()}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
-                >
-                  {exploreLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <MapPin className="h-4 w-4" />
-                      Send to GPT-5-mini for Top 20 (Backend)
-                    </>
-                  )}
-                </button>
+          {/* Day Selection */}
+          {itinerary?.days && itinerary.days.length > 1 && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Explore places for specific day (optional):
+              </label>
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => {
-                    setMockPlacesData(JSON.stringify([
-                      {"name": "Louvre Museum", "rating": 4.6, "types": ["museum"], "vicinity": "Rue de Rivoli", "place_id": "ChIJD3uTd9hx5kcR1IQvGfr8dbk"},
-                      {"name": "Notre-Dame Cathedral", "rating": 4.4, "types": ["church", "tourist_attraction"], "vicinity": "6 Parvis Notre-Dame", "place_id": "ChIJATr1n-Fx5kcRjQb5fmh_ZwE"},
-                      {"name": "Marché des Enfants Rouges", "rating": 4.2, "types": ["food", "market"], "vicinity": "39 Rue de Bretagne", "place_id": "ChIJNYjTKphx5kcRk4jkbvvLdXc"},
-                      {"name": "Seine River Cruise", "rating": 4.4, "types": ["tourist_attraction", "travel_agency"], "vicinity": "Port de Solférino", "place_id": "ChIJrTLr-GyuEmsRBfy61i59si0"},
-                      {"name": "Sacré-Cœur", "rating": 4.5, "types": ["church", "tourist_attraction"], "vicinity": "35 Rue du Chevalier de la Barre", "place_id": "ChIJATr1n-Fx5kcRjQb5fmh_ZwE"}
-                    ], null, 2))
+                    setSelectedDay(null)
+                    explorePlaces(resolvedParams.id)
                   }}
-                  className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
-                >
-                  Fill Sample Data
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Chat History */}
-          <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
-            {chatHistory.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No messages yet. Start a conversation with ChatGPT.
-              </div>
-            ) : (
-              chatHistory.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`p-4 rounded-lg border ${
-                    msg.type === 'request'
-                      ? 'bg-blue-50 border-blue-200'
-                      : 'bg-gray-50 border-gray-200'
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    selectedDay === null
+                      ? 'bg-sunset-coral-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className={`text-sm font-medium ${
-                      msg.type === 'request' ? 'text-blue-700' : 'text-gray-700'
-                    }`}>
-                      {msg.type === 'request' ? 'REQUEST' : 'RESPONSE'}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {msg.timestamp.toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <pre className="whitespace-pre-wrap text-sm font-mono text-gray-800 bg-white p-3 rounded border">
-{msg.content}
-                  </pre>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Error Display */}
-          {(chatError || exploreError) && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700 text-sm">Error: {chatError || exploreError}</p>
+                  All Days
+                </button>
+                {itinerary.days.map((day: any, index: number) => (
+                  <button
+                    key={day.id}
+                    onClick={() => handleDayChange(day.id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      selectedDay === day.id
+                        ? 'bg-sunset-coral-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Day {index + 1} ({new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-
-          {/* Input Area */}
-          <div className="border-t pt-4">
-            <div className="flex gap-2">
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Ask ChatGPT about your travel plans..."
-                className="flex-1 min-h-[80px] p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-ocean-blue-500 focus:border-transparent resize-none"
-                disabled={chatLoading}
-              />
-              <button
-                onClick={handleSend}
-                disabled={chatLoading || !message.trim()}
-                className="px-4 py-2 bg-ocean-blue-600 text-white rounded-lg hover:bg-ocean-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {chatLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="hidden sm:inline">Sending...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" />
-                    <span className="hidden sm:inline">Send</span>
-                  </>
-                )}
-              </button>
+          
+          {loadingExplore ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-sunset-coral-600" />
+              <span className="ml-2 text-gray-600">Getting personalized recommendations...</span>
             </div>
-          </div>
-
-          {/* Example Prompts */}
-          <div className="mt-4 pt-4 border-t">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Try these examples:</h4>
+          ) : gptSuggestions.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {[
-                `What are the best activities for day ${selectedDay}?`,
-                "Give me Google Maps search terms for interesting neighborhoods to explore",
-                "Suggest locations I should add to my itinerary with search terms for Google Maps",
-                "What are the must-visit cultural areas I should search for on Google Maps?",
-                "Recommend food markets and dining areas with specific location search terms"
-              ].map((example, index) => (
-                <button
+              {gptSuggestions.map((suggestion, index) => (
+                <div
                   key={index}
-                  onClick={() => setMessage(example)}
-                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
-                  disabled={chatLoading}
+                  className="px-3 py-1.5 bg-sunset-coral-50 text-sunset-coral-700 rounded-full text-sm font-medium"
                 >
-                  {example}
-                </button>
+                  {suggestion}
+                </div>
               ))}
             </div>
-          </div>
+          ) : (
+            <p className="text-gray-500 text-center py-4">
+              Loading AI-powered recommendations...
+            </p>
+          )}
         </div>
+
+        {/* Category Tabs */}
+        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
+          <button
+            onClick={() => setSelectedCategory('all')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+              selectedCategory === 'all'
+                ? 'bg-sunset-coral-600 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <MapPin className="h-4 w-4" />
+            All Places
+          </button>
+          
+          {categories.map(category => {
+            const Icon = category.icon
+            return (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
+                  selectedCategory === category.id
+                    ? 'bg-sunset-coral-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {category.name}
+                {category.places.length > 0 && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                    selectedCategory === category.id
+                      ? 'bg-white/20'
+                      : 'bg-gray-100'
+                  }`}>
+                    {category.places.length}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Places Grid */}
+        {categories.find(cat => cat.id === selectedCategory)?.loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-sunset-coral-600" />
+            <span className="ml-2 text-gray-600">Searching for places...</span>
+          </div>
+        ) : displayPlaces.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {displayPlaces.map(place => (
+              <PlaceCard key={place.place_id} place={place} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">
+              {selectedCategory === 'all' 
+                ? 'Get AI suggestions to discover places'
+                : `No ${categories.find(cat => cat.id === selectedCategory)?.name.toLowerCase()} found yet`}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
