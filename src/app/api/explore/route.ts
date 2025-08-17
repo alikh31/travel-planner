@@ -201,86 +201,6 @@ Focus on highly-rated, popular places that tourists love. Include both must-see 
       'casino'
     ]
 
-    // Search for GPT suggestions
-    for (const suggestion of gptSuggestions) {
-      try {
-        const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(suggestion + ' ' + itinerary.destination)}&key=${googleApiKey}`
-        console.log(`Searching for: "${suggestion}" in ${itinerary.destination}`)
-        const response = await fetch(searchUrl)
-        const data = await response.json()
-        
-        console.log(`Google API response status for "${suggestion}":`, data.status, 'Results:', data.results?.length || 0)
-        
-        if (data.status === 'REQUEST_DENIED') {
-          console.error('Google Places API request denied:', data.error_message)
-          break
-        }
-        
-        if (data.results && data.results.length > 0) {
-          // Take the first result for each suggestion
-          const place = data.results[0]
-          console.log(`Found place for "${suggestion}":`, place.name)
-          allPlaces.push({
-            place_id: place.place_id,
-            name: place.name,
-            rating: place.rating,
-            user_ratings_total: place.user_ratings_total,
-            price_level: place.price_level,
-            vicinity: place.vicinity || place.formatted_address,
-            opening_hours: place.opening_hours,
-            photos: place.photos,
-            geometry: place.geometry,
-            types: place.types,
-            source: 'gpt_suggestion'
-          })
-        }
-      } catch (error) {
-        console.error(`Error searching for ${suggestion}:`, error)
-        continue
-      }
-    }
-
-    // Search by category to fill out the results
-    console.log('Searching by categories:', placeTypes)
-    for (const type of placeTypes) {
-      try {
-        const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(itinerary.destination)}&type=${type}&key=${googleApiKey}`
-        console.log(`Searching for type "${type}" in ${itinerary.destination}`)
-        const response = await fetch(searchUrl)
-        const data = await response.json()
-        
-        console.log(`Google API response for type "${type}":`, data.status, 'Results:', data.results?.length || 0)
-        
-        if (data.status === 'REQUEST_DENIED') {
-          console.error('Google Places API request denied for category search:', data.error_message, googleApiKey)
-          break
-        }
-        
-        if (data.results && data.results.length > 0) {
-          // Take top 5 results per category
-          const categoryPlaces = data.results.slice(0, 5).map((place: any) => ({
-            place_id: place.place_id,
-            name: place.name,
-            rating: place.rating,
-            user_ratings_total: place.user_ratings_total,
-            price_level: place.price_level,
-            vicinity: place.vicinity || place.formatted_address,
-            opening_hours: place.opening_hours,
-            photos: place.photos,
-            geometry: place.geometry,
-            types: place.types,
-            source: 'category_search'
-          }))
-          
-          console.log(`Added ${categoryPlaces.length} places for type "${type}"`)
-          allPlaces.push(...categoryPlaces)
-        }
-      } catch (error) {
-        console.error(`Error searching for ${type}:`, error)
-        continue
-      }
-    }
-
     // Additional targeted searches for popular categories
     const additionalSearches = [
       `top restaurants in ${itinerary.destination}`,
@@ -293,45 +213,99 @@ Focus on highly-rated, popular places that tourists love. Include both must-see 
       `local markets in ${itinerary.destination}`
     ]
 
-    console.log('Performing additional targeted searches')
-    for (const searchQuery of additionalSearches) {
-      try {
-        const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${googleApiKey}`
-        console.log(`Additional search: "${searchQuery}"`)
-        const response = await fetch(searchUrl)
-        const data = await response.json()
+    // Helper function to process places search with concurrency limit
+    const searchPlacesWithConcurrency = async (searchRequests: Array<{url: string, type: string, maxResults: number}>, maxConcurrency = 10) => {
+      const results: any[] = []
+      
+      // Process requests in batches of maxConcurrency
+      for (let i = 0; i < searchRequests.length; i += maxConcurrency) {
+        const batch = searchRequests.slice(i, i + maxConcurrency)
+        console.log(`Processing batch ${Math.floor(i / maxConcurrency) + 1}/${Math.ceil(searchRequests.length / maxConcurrency)} with ${batch.length} requests`)
         
-        console.log(`Additional search response for "${searchQuery}":`, data.status, 'Results:', data.results?.length || 0)
+        const batchPromises = batch.map(async (request) => {
+          try {
+            console.log(`Fetching: ${request.type}`)
+            const response = await fetch(request.url)
+            const data = await response.json()
+            
+            console.log(`API response for "${request.type}":`, data.status, 'Results:', data.results?.length || 0)
+            
+            if (data.status === 'REQUEST_DENIED') {
+              console.error(`Google Places API request denied for "${request.type}":`, data.error_message)
+              return []
+            }
+            
+            if (data.results && data.results.length > 0) {
+              const places = data.results.slice(0, request.maxResults).map((place: any) => ({
+                place_id: place.place_id,
+                name: place.name,
+                rating: place.rating,
+                user_ratings_total: place.user_ratings_total,
+                price_level: place.price_level,
+                vicinity: place.vicinity || place.formatted_address,
+                opening_hours: place.opening_hours,
+                photos: place.photos,
+                geometry: place.geometry,
+                types: place.types,
+                source: request.type.includes('suggestion') ? 'gpt_suggestion' : 
+                       request.type.includes('category') ? 'category_search' : 'additional_search'
+              }))
+              
+              console.log(`Found ${places.length} places for "${request.type}"`)
+              return places
+            }
+            
+            return []
+          } catch (error) {
+            console.error(`Error in search for "${request.type}":`, error)
+            return []
+          }
+        })
         
-        if (data.status === 'REQUEST_DENIED') {
-          console.error('Google Places API request denied for additional search:', data.error_message)
-          break
+        const batchResults = await Promise.all(batchPromises)
+        results.push(...batchResults.flat())
+        
+        // Small delay between batches to be respectful to the API
+        if (i + maxConcurrency < searchRequests.length) {
+          await new Promise(resolve => setTimeout(resolve, 100))
         }
-        
-        if (data.results && data.results.length > 0) {
-          // Take top 3 results per additional search
-          const searchPlaces = data.results.slice(0, 3).map((place: any) => ({
-            place_id: place.place_id,
-            name: place.name,
-            rating: place.rating,
-            user_ratings_total: place.user_ratings_total,
-            price_level: place.price_level,
-            vicinity: place.vicinity || place.formatted_address,
-            opening_hours: place.opening_hours,
-            photos: place.photos,
-            geometry: place.geometry,
-            types: place.types,
-            source: 'additional_search'
-          }))
-          
-          console.log(`Added ${searchPlaces.length} places from additional search`)
-          allPlaces.push(...searchPlaces)
-        }
-      } catch (error) {
-        console.error(`Error in additional search for ${searchQuery}:`, error)
-        continue
       }
+      
+      return results
     }
+
+    // Prepare all search requests
+    const allSearchRequests = [
+      // GPT suggestions searches
+      ...gptSuggestions.map(suggestion => ({
+        url: `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(suggestion + ' ' + itinerary.destination)}&key=${googleApiKey}`,
+        type: `suggestion: ${suggestion}`,
+        maxResults: 1
+      })),
+      
+      // Category searches
+      ...placeTypes.map(type => ({
+        url: `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(itinerary.destination)}&type=${type}&key=${googleApiKey}`,
+        type: `category: ${type}`,
+        maxResults: 5
+      })),
+      
+      // Additional targeted searches
+      ...additionalSearches.map(searchQuery => ({
+        url: `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${googleApiKey}`,
+        type: `additional: ${searchQuery}`,
+        maxResults: 3
+      }))
+    ]
+
+    console.log(`Starting parallel search for ${allSearchRequests.length} requests with max concurrency of 10`)
+    const startTime = Date.now()
+    
+    // Execute all searches with concurrency control
+    allPlaces.push(...await searchPlacesWithConcurrency(allSearchRequests, 10))
+    
+    const endTime = Date.now()
+    console.log(`Completed all searches in ${endTime - startTime}ms`)
 
     console.log('Total places found before deduplication:', allPlaces.length)
     
