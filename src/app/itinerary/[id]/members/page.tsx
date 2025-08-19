@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { 
   Users, 
   UserPlus, 
@@ -57,7 +58,7 @@ export default function MembersPage({ params }: { params: Promise<{ id: string }
     fetchItinerary()
   }, [resolvedParams.id, fetchItinerary])
 
-  const fetchItinerary = async () => {
+  const fetchItinerary = useCallback(async () => {
     try {
       const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
       if (response.ok) {
@@ -71,7 +72,7 @@ export default function MembersPage({ params }: { params: Promise<{ id: string }
     } finally {
       setLoading(false)
     }
-  }
+  }, [resolvedParams.id])
 
   const handleAddMember = async () => {
     if (!newMemberEmail.trim() || !itinerary) return
@@ -239,9 +240,11 @@ export default function MembersPage({ params }: { params: Promise<{ id: string }
                   {/* Avatar Section */}
                   <div className="flex-shrink-0">
                     {member.user.image ? (
-                      <img
+                      <Image
                         src={member.user.image}
                         alt={member.user.name || 'Member'}
+                        width={64}
+                        height={64}
                         className="w-16 h-16 rounded-full object-cover"
                       />
                     ) : (

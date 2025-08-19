@@ -3,6 +3,7 @@
 import { useState, useEffect, use, useCallback, memo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { useActivityTracking } from '@/hooks/useActivityTracking'
 import { 
   MapPin, 
@@ -34,18 +35,18 @@ const ImmersivePlaceCard = memo(({
   wishlistItems,
   onToggleWishlist
 }: { 
-  place: any
+  place: Place
   isNext?: boolean
   placeIndex?: number
   currentPlaceIndex: number
   currentImageIndex: number
   isImageScrolling: boolean
-  enhancedPlaces: Map<string, any>
+  enhancedPlaces: Map<string, Place>
   loadingEnhancedPlace: string | null
   placeImageIndexes: Map<string, number>
   onNavigateToImage: (index: number) => void
   wishlistItems: Set<string>
-  onToggleWishlist: (place: any) => void
+  onToggleWishlist: (place: Place) => void
 }) => {
   // Get enhanced place data
   const enhanced = enhancedPlaces.get(place.place_id)
@@ -106,7 +107,7 @@ const ImmersivePlaceCard = memo(({
             }}
             onDoubleClick={handleDoubleClick}
           >
-            {photos.map((photo: any, index: number) => {
+            {photos.map((photo: { photo_reference?: string; name?: string }, index: number) => {
               // Generate stable image key
               const imageKey = `${enhancedPlace.place_id}-${index}`
               
@@ -122,14 +123,15 @@ const ImmersivePlaceCard = memo(({
               return (
                 <div
                   key={imageKey}
-                  className="w-full h-full flex-shrink-0"
+                  className="w-full h-full flex-shrink-0 relative"
                   style={{ width: `${100 / photos.length}%` }}
                 >
                   {imageUrl ? (
-                    <img
+                    <Image
                       src={imageUrl}
                       alt={`${enhancedPlace.name} - Image ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
                       loading={index === placeSpecificImageIndex ? "eager" : "lazy"}
                     />
                   ) : (
@@ -155,7 +157,7 @@ const ImmersivePlaceCard = memo(({
           {/* Image Navigation Dots */}
           {photos.length > 1 && isCurrentPlace && (
             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-20">
-              {photos.map((_: any, index: number) => (
+              {photos.map((_, index: number) => (
                 <button
                   key={index}
                   onClick={(e) => {
@@ -380,7 +382,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
   const getAllPlaces = useCallback(() => {
     const allPlaces = new Map<string, Place>()
-    categories.forEach((cat: any) => {
+    categories.forEach((cat: { places?: Place[] }) => {
       if (cat.places) {
         cat.places.forEach((place: Place) => {
           allPlaces.set(place.place_id, place)
@@ -800,7 +802,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   }, [currentPlaceIndex, currentImageIndex, allDisplayPlaces.length, isScrolling, isImageScrolling, navigateToPlace, navigateToImage])
 
 
-  const fetchItinerary = async () => {
+  const fetchItinerary = useCallback(async () => {
     try {
       const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
       if (response.ok) {
@@ -820,20 +822,20 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     } finally {
       setLoading(false)
     }
-  }
+  }, [resolvedParams.id, explorePlaces])
 
-  const fetchWishlist = async () => {
+  const fetchWishlist = useCallback(async () => {
     try {
       const response = await fetch(`/api/wishlist?itineraryId=${resolvedParams.id}`)
       if (response.ok) {
         const data = await response.json()
-        const placeIds = new Set<string>(data.items.map((item: any) => item.placeId))
+        const placeIds = new Set<string>(data.items.map((item: { placeId: string }) => item.placeId))
         setWishlistItems(placeIds)
       }
     } catch (error) {
       console.error('Error fetching wishlist:', error)
     }
-  }
+  }, [resolvedParams.id])
 
   const toggleWishlist = async (place: Place) => {
     const isInWishlist = wishlistItems.has(place.place_id)
@@ -957,7 +959,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
           }
           
           // Update categories with places - convert to simple format for immersive view
-          const newCategories: any[] = []
+          const newCategories: { places: Place[] }[] = []
           if (data.places) {
             Object.keys(data.places).forEach(categoryId => {
               newCategories.push({

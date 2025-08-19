@@ -4,6 +4,7 @@ import { useState, useEffect, use, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { 
   Hotel, 
   Plus, 
@@ -108,7 +109,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
         setItinerary(data)
         // Map accommodations with order index
         if (data.accommodations) {
-          const accommodationsWithOrder = data.accommodations.map((acc: any, index: number) => ({
+          const accommodationsWithOrder = data.accommodations.map((acc: Accommodation, index: number) => ({
             ...acc,
             order: index + 1,
             type: acc.type || 'hotel',
@@ -371,9 +372,11 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
                       {/* Image Section */}
                       <div className="flex-shrink-0">
                         {accommodation.photoUrl ? (
-                          <img
+                          <Image
                             src={convertToBackendImageUrl(accommodation.photoUrl, 300)}
                             alt={accommodation.name}
+                            width={96}
+                            height={96}
                             className="w-24 h-24 object-cover rounded-lg"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none'
