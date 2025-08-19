@@ -96,6 +96,7 @@ describe('/api/activities POST', () => {
     expect(mockCreate).toHaveBeenCalledWith({
       data: {
         dayId: 'day-1',
+        dayIndex: undefined,
         title: 'Test Activity',
         description: 'Test Description',
         location: 'Test Location',
@@ -107,6 +108,7 @@ describe('/api/activities POST', () => {
         cost: 50,
         isGroupActivity: true,
         createdBy: 'test-user-id',
+        placePhotoReference: null,
       },
       include: {
         creator: true,
@@ -242,6 +244,7 @@ describe('/api/activities POST', () => {
     expect(mockCreate).toHaveBeenCalledWith({
       data: {
         dayId: 'day-1',
+        dayIndex: undefined,
         title: 'Minimal Activity',
         description: null,
         location: null,
@@ -253,6 +256,7 @@ describe('/api/activities POST', () => {
         cost: null,
         isGroupActivity: true,
         createdBy: 'test-user-id',
+        placePhotoReference: null,
       },
       include: {
         creator: true,

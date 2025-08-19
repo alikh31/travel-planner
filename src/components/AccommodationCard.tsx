@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Hotel, MapPin, Users, Calendar } from 'lucide-react'
+import { Hotel, MapPin, Users, Calendar, Clock, DoorOpen, AlertCircle } from 'lucide-react'
 import { getPlacePhoto } from '@/lib/googleMaps'
 
 interface Accommodation {
@@ -35,16 +35,44 @@ interface AccommodationCardProps {
   cardNumber?: number
   isStart?: boolean
   isEnd?: boolean
+  firstActivityStartTime?: string
+  commuteTime?: number // in minutes
 }
 
 export default function AccommodationCard({
   accommodation,
   cardNumber,
   isStart = false,
-  isEnd = false
+  isEnd = false,
+  firstActivityStartTime,
+  commuteTime = 30
 }: AccommodationCardProps) {
   const [locationImage, setLocationImage] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(false)
+  const [departureTime, setDepartureTime] = useState<string>('')
+  const bufferTime = 15 // 15 minutes buffer for getting ready
+  
+  // Calculate departure time
+  useEffect(() => {
+    if (!isStart || !firstActivityStartTime) {
+      setDepartureTime('')
+      return
+    }
+    
+    // Parse the start time
+    const [hours, minutes] = firstActivityStartTime.split(':').map(Number)
+    const activityTime = new Date()
+    activityTime.setHours(hours, minutes, 0, 0)
+    
+    // Calculate departure time (activity time - commute time - buffer time)
+    const totalTravelTime = commuteTime + bufferTime
+    const departureDate = new Date(activityTime.getTime() - totalTravelTime * 60 * 1000)
+    
+    // Format the departure time
+    const depHours = departureDate.getHours().toString().padStart(2, '0')
+    const depMinutes = departureDate.getMinutes().toString().padStart(2, '0')
+    setDepartureTime(`${depHours}:${depMinutes}`)
+  }, [isStart, firstActivityStartTime, commuteTime, bufferTime])
 
   const openGoogleMaps = (location: string) => {
     const query = encodeURIComponent(location)
@@ -183,9 +211,27 @@ export default function AccommodationCard({
               </div>
             )}
 
+            {/* Leave Hotel Time - Only show for start of day cards */}
+            {isStart && departureTime && firstActivityStartTime && (
+              <div className={`mt-3 p-3 rounded-lg ${departureTime < '08:00' ? 'bg-amber-50 border border-amber-200' : 'bg-white/50 border border-gray-200'}`}>
+                <div className="flex items-center gap-2">
+                  <DoorOpen className={`h-4 w-4 ${departureTime < '08:00' ? 'text-amber-600' : 'text-blue-600'}`} />
+                  <span className="text-sm font-semibold text-gray-800">
+                    Leave at {departureTime}
+                  </span>
+                  {departureTime < '08:00' && (
+                    <div className="flex items-center gap-1 text-amber-600">
+                      <AlertCircle className="h-3 w-3" />
+                      <span className="text-xs">Early departure</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Notes */}
             {accommodation.notes && (
-              <p className="text-sm text-gray-600 italic">
+              <p className="text-sm text-gray-600 italic mt-3">
                 &ldquo;{accommodation.notes}&rdquo;
               </p>
             )}

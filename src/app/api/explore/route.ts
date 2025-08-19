@@ -15,7 +15,7 @@ const openai = new OpenAI({
 })
 
 // Cost optimization configuration
-const GPT_SUGGESTIONS_COUNT = 10
+const GPT_SUGGESTIONS_COUNT = 15
 
 export async function POST(request: NextRequest) {
   try {
@@ -305,20 +305,25 @@ ${existingSuggestionsList.length > 0 ? `- CRITICAL: Do NOT suggest these places 
 - Include both must-see landmarks and hidden gems
 - Prioritize places that complement my planned activities and accommodation locations
 
-Return exactly ${GPT_SUGGESTIONS_COUNT} suggestions in this format:
-PLACE_NAME|CATEGORY
+Return exactly ${GPT_SUGGESTIONS_COUNT} suggestions in this EXACT format (no extra text, no explanations):
+PLACE_NAME|CATEGORY|TIMEFRAME|DURATION
 
-Where CATEGORY should be one of: restaurant, cafe, bar, attraction, museum, shopping, nature, culture, entertainment, nightlife
+STRICT REQUIREMENTS:
+- CATEGORY must be one of: restaurant, cafe, bar, attraction, museum, shopping, nature, culture, entertainment, nightlife
+- TIMEFRAME must be one of: morning, afternoon, evening, night, anytime
+- DURATION must be a number in minutes (30-300 range)
+- Each line must have exactly 4 parts separated by |
+- No additional text, explanations, or numbering
 
-Example:
-Blue Bottle Coffee|cafe
-Golden Gate Bridge|attraction
-Mission Dolores Park|nature
+Example format:
+Blue Bottle Coffee|cafe|morning|45
+Golden Gate Bridge|attraction|anytime|120
+Mission Dolores Park|nature|afternoon|90
 
-Only return the place name and category pairs, one per line, without numbers or additional text.`
+CRITICAL: Follow this format exactly. Do not deviate.`
 
-    // Get GPT suggestions with categories
-    let gptSuggestions: Array<{ name: string; category: string }> = []
+    // Get GPT suggestions with categories, timeframes, and durations
+    let gptSuggestions: Array<{ name: string; category: string; timeframe: string; duration: number }> = []
     try {
       const messages = [
         {
@@ -343,18 +348,37 @@ Only return the place name and category pairs, one per line, without numbers or 
       // Cache the conversation (prompt and response)
       await saveChatGPTConversation(itineraryId, prompt, response)
       
-      // Parse the structured response (PLACE_NAME|CATEGORY format)
+      // Parse the structured response (PLACE_NAME|CATEGORY|TIMEFRAME|DURATION format)
       const suggestions = response
         .split('\n')
         .filter(line => line.trim())
         .map(line => line.trim())
         .filter(line => line.includes('|'))
         .map(line => {
-          const [name, category] = line.split('|').map(part => part.trim())
-          return { name, category }
+          const parts = line.split('|').map(part => part.trim())
+          if (parts.length >= 4) {
+            const [name, category, timeframe, durationStr] = parts
+            const duration = parseInt(durationStr) || 60 // Default to 60 minutes if parsing fails
+            
+            // Validate timeframe
+            const validTimeframes = ['morning', 'afternoon', 'evening', 'night', 'anytime']
+            const validatedTimeframe = validTimeframes.includes(timeframe.toLowerCase()) ? timeframe.toLowerCase() : 'anytime'
+            
+            // Validate duration (30-300 minutes)
+            const validatedDuration = duration >= 30 && duration <= 300 ? duration : 60
+            
+            return { name, category, timeframe: validatedTimeframe, duration: validatedDuration }
+          } else if (parts.length >= 2) {
+            // Fallback for old format
+            const [name, category] = parts
+            return { name, category, timeframe: 'anytime', duration: 60 }
+          }
+          return null
         })
-        .filter(suggestion => suggestion.name && suggestion.category)
+        .filter((suggestion): suggestion is { name: string; category: string; timeframe: string; duration: number } => 
+          suggestion !== null && Boolean(suggestion.name) && Boolean(suggestion.category))
         .slice(0, GPT_SUGGESTIONS_COUNT) // Ensure we don't exceed the configured max
+      
 
       // Randomize the order of suggestions using Fisher-Yates shuffle
       for (let i = suggestions.length - 1; i > 0; i--) {
@@ -386,7 +410,7 @@ Only return the place name and category pairs, one per line, without numbers or 
     }
 
     const allPlaces: any[] = []
-    const placeMetadata = new Map<string, { isGptSuggestion: boolean, gptCategory?: string, searchSource: string }>()
+    const placeMetadata = new Map<string, { isGptSuggestion: boolean, gptCategory?: string, gptTimeframe?: string, gptDuration?: number, searchSource: string }>()
     
     // Search for GPT suggestions using Text Search - this is now our only source
     for (let i = 0; i < gptSuggestions.length; i++) {
@@ -401,12 +425,15 @@ Only return the place name and category pairs, one per line, without numbers or 
         const convertedPlace = convertLegacyPlace(places[0])
         allPlaces.push(convertedPlace)
         
-        // Use the ChatGPT-determined category directly
-        placeMetadata.set(convertedPlace.place_id, {
+        // Use the ChatGPT-determined category, timeframe, and duration
+        const metadata = {
           isGptSuggestion: true,
           gptCategory: suggestion.category,
+          gptTimeframe: suggestion.timeframe,
+          gptDuration: suggestion.duration,
           searchSource: 'gpt'
-        })
+        }
+        placeMetadata.set(convertedPlace.place_id, metadata)
       }
     }
     

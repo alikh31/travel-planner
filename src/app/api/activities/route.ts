@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       locationPlaceId,
       locationLat,
       locationLng,
+      placePhotoReference,
       startTime,
       duration,
       cost,
@@ -57,12 +58,14 @@ export async function POST(request: NextRequest) {
     const activity = await prisma.activity.create({
       data: {
         dayId,
+        dayIndex: day.dayIndex,
         title,
         description: description || null,
         location: location || null,
         locationPlaceId: locationPlaceId?.place_id || null,
         locationLat: locationLat || null,
         locationLng: locationLng || null,
+        placePhotoReference: placePhotoReference || null,
         startTime: startTime || null,
         duration: duration || null,
         cost: cost || null,

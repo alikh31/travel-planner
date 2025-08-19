@@ -46,7 +46,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { placeId, placeName, placeVicinity, placeRating, placePhotoReference, itineraryId } = await request.json()
+    const { placeId, placeName, placeVicinity, placeRating, placePhotoReference, itineraryId, gptTimeframe, gptDuration, locationLat, locationLng } = await request.json()
+    
 
     if (!placeId || !placeName || !itineraryId) {
       return NextResponse.json({ error: 'Place ID, name, and itinerary ID are required' }, { status: 400 })
@@ -75,7 +76,11 @@ export async function POST(request: NextRequest) {
         placeVicinity,
         placeRating,
         placePhotoReference,
-        itineraryId
+        itineraryId,
+        gptTimeframe,
+        gptDuration,
+        locationLat,
+        locationLng
       }
     })
 

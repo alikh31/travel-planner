@@ -46,6 +46,7 @@ interface Activity {
   locationPlaceId?: string
   locationLat?: number | null
   locationLng?: number | null
+  placePhotoReference?: string
   startTime?: string
   duration?: number
   cost?: number
@@ -108,22 +109,32 @@ const ActivityItem = memo(({
     window.open(`https://www.google.com/maps/search/${query}`, '_blank')
   }
 
-  // Fetch location image when activity has a place ID
+  // Fetch location image when activity has a place ID or cached photo reference
   useEffect(() => {
-    if (activity.locationPlaceId && !locationImage && !imageLoading) {
-      setImageLoading(true)
-      getPlacePhotoFromBackend(activity.locationPlaceId)
-        .then((photoUrl) => {
-          setLocationImage(photoUrl)
-        })
-        .catch((error) => {
-          console.error('Error fetching place photo:', error)
-        })
-        .finally(() => {
-          setImageLoading(false)
-        })
+    if (!locationImage && !imageLoading) {
+      // First, try to use cached photo reference if available
+      if (activity.placePhotoReference) {
+        const photoUrl = `/api/images?name=${encodeURIComponent(activity.placePhotoReference)}&maxWidth=400&legacy=true`
+        setLocationImage(photoUrl)
+        return
+      }
+      
+      // Fallback to dynamic fetching using place ID
+      if (activity.locationPlaceId) {
+        setImageLoading(true)
+        getPlacePhotoFromBackend(activity.locationPlaceId)
+          .then((photoUrl) => {
+            setLocationImage(photoUrl)
+          })
+          .catch((error) => {
+            console.error('Error fetching place photo:', error)
+          })
+          .finally(() => {
+            setImageLoading(false)
+          })
+      }
     }
-  }, [activity.locationPlaceId, locationImage, imageLoading])
+  }, [activity.locationPlaceId, activity.placePhotoReference, locationImage, imageLoading])
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
@@ -358,11 +369,18 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     locationPlaceId: '',
     locationLat: null as number | null,
     locationLng: null as number | null,
+    placePhotoReference: '',
     startTime: '',
-    duration: '',
-    cost: '',
-    isGroupActivity: true
+    duration: ''
   })
+
+  // State for tracking where add activity was triggered from (for smart time calculation)
+  const [addActivityContext, setAddActivityContext] = useState<{
+    afterActivityId?: string
+    suggestedStartTime?: string
+    previousLocation?: { lat: number; lng: number }
+  }>({})
+
 
   // Click outside handler to close dropdown
   useEffect(() => {
@@ -387,6 +405,21 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     if (!selectedDay || !itinerary) return null
     return itinerary.days.find((d: any) => d.id === selectedDay)
   }, [selectedDay, itinerary])
+
+  // Function to calculate suggested start time based on previous activity
+  const calculateSuggestedStartTime = useCallback((afterActivityId?: string) => {
+    if (!afterActivityId || !selectedDayData?.activities) return undefined
+    
+    const afterActivity = selectedDayData.activities.find((a: Activity) => a.id === afterActivityId)
+    if (!afterActivity?.startTime || !afterActivity?.duration) return undefined
+    
+    // Calculate end time of previous activity
+    const endTime = getEndTime(afterActivity.startTime, afterActivity.duration)
+    if (!endTime) return undefined
+    
+    // Add 15 minutes buffer for commute time
+    return getTimeWithOffset(endTime, 15)
+  }, [selectedDayData])
 
   // Memoized activities for map - only changes when location data changes
   const mapActivities = useMemo(() => {
@@ -793,7 +826,6 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   }, [newComment, session?.user?.id, resolvedParams.id, itinerary, updateItineraryIfChanged])
 
   const handleDeleteActivity = useCallback(async (activityId: string) => {
-    if (!confirm('Are you sure you want to delete this activity?')) return
     if (!session?.user?.id || !itinerary) return
 
     setIsDeletingActivity(true)
@@ -860,7 +892,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
           dayId: selectedDay,
           ...newActivity,
           duration: newActivity.duration ? parseInt(newActivity.duration) : null,
-          cost: newActivity.cost ? parseFloat(newActivity.cost) : null
+          isGroupActivity: true // Default to true since we removed the checkbox
         })
       })
 
@@ -873,11 +905,11 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
           locationPlaceId: '',
           locationLat: null,
           locationLng: null,
+          placePhotoReference: '',
           startTime: '',
-          duration: '',
-          cost: '',
-          isGroupActivity: true
+          duration: ''
         })
+        setAddActivityContext({}) // Clear context after successful add
         await updateItineraryIfChanged(resolvedParams.id as string)
       } else {
         const errorData = await response.json()
@@ -1096,6 +1128,7 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
               getTimeWithOffset={getTimeWithOffset}
               getEndTime={getEndTime}
               TimeGap={TimeGap}
+              setAddActivityContext={setAddActivityContext}
             />
           </div>
         </div>
@@ -1128,10 +1161,16 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
       {/* Add Activity Modal */}
       <AddActivityModal
         isOpen={showAddActivity}
-        onClose={() => setShowAddActivity(false)}
+        onClose={() => {
+          setShowAddActivity(false)
+          setAddActivityContext({}) // Clear context when closing
+        }}
         newActivity={newActivity}
         setNewActivity={setNewActivity}
         onSubmit={handleAddActivity}
+        itineraryId={resolvedParams.id}
+        suggestedStartTime={addActivityContext.suggestedStartTime}
+        previousActivityLocation={addActivityContext.previousLocation}
       />
 
       {/* Edit Activity Modal */}

@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
         data: {
           itineraryId: itinerary.id,
           date: dayDate,
+          dayIndex: i,
         },
       })
       days.push(day)

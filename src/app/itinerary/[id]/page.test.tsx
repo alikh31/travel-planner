@@ -125,7 +125,9 @@ describe('ItineraryPage', () => {
       expect(screen.getByText('Test Itinerary')).toBeInTheDocument()
     })
     
-    expect(screen.getByText('Add Activity')).toBeInTheDocument()
+    // Check that at least one Add Activity button exists (there may be multiple from TimeGap components)
+    const addActivityButtons = screen.getAllByText('Add Activity')
+    expect(addActivityButtons.length).toBeGreaterThan(0)
   })
 
   it('handles add activity modal opening', async () => {
@@ -135,11 +137,11 @@ describe('ItineraryPage', () => {
       expect(screen.getByText('Test Itinerary')).toBeInTheDocument()
     })
     
-    const addActivityButton = screen.getByText('Add Activity')
-    expect(addActivityButton).toBeInTheDocument()
+    const addActivityButtons = screen.getAllByText('Add Activity')
+    expect(addActivityButtons.length).toBeGreaterThan(0)
     
-    // Just verify the button is clickable (modal behavior may not work in test environment)
-    fireEvent.click(addActivityButton)
+    // Just verify the first button is clickable (modal behavior may not work in test environment)
+    fireEvent.click(addActivityButtons[0])
   })
 
   it('displays live status indicator', async () => {
@@ -223,12 +225,12 @@ describe('ItineraryPage', () => {
     })
     
     // Check that add activity button is available
-    const addActivityButton = screen.getByText('Add Activity')
-    expect(addActivityButton).toBeInTheDocument()
+    const addActivityButtons = screen.getAllByText('Add Activity')
+    expect(addActivityButtons.length).toBeGreaterThan(0)
     
     // Activity creation workflow would require modal interactions that don't work in test environment
     // Just verify the button exists and is clickable
-    fireEvent.click(addActivityButton)
+    fireEvent.click(addActivityButtons[0])
   })
 
   // Tests for mobile interval polling fix

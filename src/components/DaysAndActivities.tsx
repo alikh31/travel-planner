@@ -2,7 +2,8 @@
 
 import { format } from 'date-fns'
 import { useEffect, useRef } from 'react'
-import { Calendar, Plus, Map, Hotel, AlertCircle, AlertTriangle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Calendar, Map, Hotel, AlertCircle, AlertTriangle, Compass } from 'lucide-react'
 import AccommodationCard from './AccommodationCard'
 import Commute from './Commute'
 
@@ -32,6 +33,7 @@ interface DaysAndActivitiesProps {
   TimeGap: any
   openDropdown: string | null
   setOpenDropdown: (id: string | null) => void
+  setAddActivityContext: (context: { afterActivityId?: string; suggestedStartTime?: string; previousLocation?: { lat: number; lng: number } }) => void
 }
 
 export default function DaysAndActivities({
@@ -59,8 +61,10 @@ export default function DaysAndActivities({
   getEndTime,
   TimeGap,
   openDropdown,
-  setOpenDropdown
+  setOpenDropdown,
+  setAddActivityContext
 }: DaysAndActivitiesProps) {
+  const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to selected day in mobile slider
@@ -177,11 +181,11 @@ export default function DaysAndActivities({
           
           <div className="flex space-x-2">
             <button
-              onClick={() => setShowAddActivity(true)}
+              onClick={() => router.push(`/itinerary/${itinerary.id}/explore`)}
               className="flex items-center px-4 py-2 bg-sunset-coral-600 hover:bg-sunset-coral-700 text-white rounded-lg transition-colors"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Activity
+              <Compass className="h-4 w-4 mr-2" />
+              Explore
             </button>
           </div>
         </div>
@@ -196,7 +200,18 @@ export default function DaysAndActivities({
             <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 mb-4">No activities planned for this day</p>
             <button
-              onClick={() => setShowAddActivity(true)}
+              onClick={() => {
+                // For first activity, try to use accommodation location as reference
+                const accommodation = getAccommodationForDate(selectedDayData?.date)
+                setAddActivityContext({
+                  afterActivityId: undefined,
+                  suggestedStartTime: undefined,
+                  previousLocation: accommodation?.locationLat && accommodation?.locationLng
+                    ? { lat: accommodation.locationLat, lng: accommodation.locationLng }
+                    : undefined
+                })
+                setShowAddActivity(true)
+              }}
               className="text-ocean-blue-600 hover:underline"
             >
               Add the first activity
@@ -207,14 +222,84 @@ export default function DaysAndActivities({
             {/* Start of Day Accommodation Card */}
             {(() => {
               const accommodation = getAccommodationForDate(selectedDayData.date)
+              const firstActivity = selectedDayData.activities[0]
               return accommodation ? (
                 <AccommodationCard
                   accommodation={accommodation}
                   cardNumber={1}
                   isStart={true}
+                  firstActivityStartTime={firstActivity?.startTime}
+                  commuteTime={30} // Default 30 minutes, could be calculated dynamically
                 />
               ) : null
             })()}
+
+            {/* Morning Time Gap - Show before first activity if there's a meaningful time gap after commute */}
+            {selectedDayData.activities.length > 0 && selectedDayData.activities[0].startTime && (() => {
+              const firstActivity = selectedDayData.activities[0]
+              const firstActivityTime = firstActivity.startTime
+              const dayStart = '08:00'
+              const commuteTimeMinutes = 30 // Default commute time from accommodation
+              const bufferTimeMinutes = 15 // Buffer time for getting ready
+              
+              // Calculate the departure time from accommodation (first activity time - commute - buffer)
+              const firstActivityDate = new Date(`2000-01-01T${firstActivityTime}`)
+              const departureDate = new Date(firstActivityDate.getTime() - (commuteTimeMinutes + bufferTimeMinutes) * 60 * 1000)
+              const departureTime = departureDate.toTimeString().slice(0, 5)
+              
+              // Calculate the available gap between day start and departure time
+              const dayStartDate = new Date(`2000-01-01T${dayStart}`)
+              const gapMinutes = Math.floor((departureDate.getTime() - dayStartDate.getTime()) / (1000 * 60))
+              
+              // Only show if there's at least 60 minutes gap after accounting for commute
+              if (gapMinutes >= 60) {
+                return (
+                  <TimeGap
+                    startTime={dayStart}
+                    endTime={departureTime}
+                    gapType="morning"
+                    onAddActivity={(suggestedStartTime?: string) => {
+                      setAddActivityContext({
+                        suggestedStartTime,
+                        previousLocation: getAccommodationForDate(selectedDayData.date) && 
+                          getAccommodationForDate(selectedDayData.date).locationLat && 
+                          getAccommodationForDate(selectedDayData.date).locationLng
+                          ? { 
+                              lat: getAccommodationForDate(selectedDayData.date).locationLat, 
+                              lng: getAccommodationForDate(selectedDayData.date).locationLng 
+                            }
+                          : undefined
+                      })
+                      setShowAddActivity(true)
+                    }}
+                  />
+                )
+              }
+              return null
+            })()}
+
+            {/* Full Day Availability - Show when no activities exist */}
+            {selectedDayData.activities.length === 0 && (
+              <TimeGap
+                startTime="08:00"
+                endTime="22:00"
+                gapLabel="Full day availability"
+                onAddActivity={(suggestedStartTime?: string) => {
+                  setAddActivityContext({
+                    suggestedStartTime,
+                    previousLocation: getAccommodationForDate(selectedDayData.date) && 
+                      getAccommodationForDate(selectedDayData.date).locationLat && 
+                      getAccommodationForDate(selectedDayData.date).locationLng
+                      ? { 
+                          lat: getAccommodationForDate(selectedDayData.date).locationLat, 
+                          lng: getAccommodationForDate(selectedDayData.date).locationLng 
+                        }
+                      : undefined
+                  })
+                  setShowAddActivity(true)
+                }}
+              />
+            )}
 
             {selectedDayData.activities.map((activity: any, index: number) => {
               const accommodation = getAccommodationForDate(selectedDayData.date)
@@ -264,7 +349,14 @@ export default function DaysAndActivities({
                       <TimeGap
                         startTime={getEndTime(activity.startTime, activity.duration) || undefined}
                         endTime={selectedDayData.activities[index + 1].startTime || undefined}
-                        onAddActivity={() => {
+                        onAddActivity={(suggestedStartTime?: string) => {
+                          setAddActivityContext({
+                            afterActivityId: activity.id,
+                            suggestedStartTime,
+                            previousLocation: activity.locationLat && activity.locationLng 
+                              ? { lat: activity.locationLat, lng: activity.locationLng }
+                              : undefined
+                          })
                           setShowAddActivity(true)
                         }}
                       />
@@ -283,6 +375,48 @@ export default function DaysAndActivities({
                 </div>
               )
             })}
+
+            {/* Evening Time Gap - Show after last activity if there's meaningful time gap after commute */}
+            {selectedDayData.activities.length > 0 && (() => {
+              const lastActivity = selectedDayData.activities[selectedDayData.activities.length - 1]
+              const lastActivityEndTime = getEndTime(lastActivity.startTime, lastActivity.duration)
+              const dayEnd = '22:00'
+              const commuteTimeMinutes = 30 // Default commute time back to accommodation
+              const bufferTimeMinutes = 15 // Buffer time for returning to accommodation
+              
+              if (!lastActivityEndTime) return null
+              
+              // Calculate the latest start time for a new activity (day end - commute - buffer)
+              const dayEndDate = new Date(`2000-01-01T${dayEnd}`)
+              const latestStartDate = new Date(dayEndDate.getTime() - (commuteTimeMinutes + bufferTimeMinutes) * 60 * 1000)
+              const latestStartTime = latestStartDate.toTimeString().slice(0, 5)
+              
+              // Calculate the available gap between last activity end and latest possible start
+              const lastActivityEndDate = new Date(`2000-01-01T${lastActivityEndTime}`)
+              const gapMinutes = Math.floor((latestStartDate.getTime() - lastActivityEndDate.getTime()) / (1000 * 60))
+              
+              // Only show if there's at least 60 minutes gap after accounting for commute
+              if (gapMinutes >= 60) {
+                return (
+                  <TimeGap
+                    startTime={lastActivityEndTime}
+                    endTime={latestStartTime}
+                    gapType="evening"
+                    onAddActivity={(suggestedStartTime?: string) => {
+                      setAddActivityContext({
+                        afterActivityId: lastActivity.id,
+                        suggestedStartTime,
+                        previousLocation: lastActivity.locationLat && lastActivity.locationLng 
+                          ? { lat: lastActivity.locationLat, lng: lastActivity.locationLng }
+                          : undefined
+                      })
+                      setShowAddActivity(true)
+                    }}
+                  />
+                )
+              }
+              return null
+            })()}
 
             {/* End of Day Accommodation Card */}
             {(() => {

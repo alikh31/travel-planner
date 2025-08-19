@@ -11,12 +11,12 @@ import {
   Loader2,
   Star,
   DollarSign,
-  RefreshCw,
   ChevronLeft,
   ChevronRight,
   Heart,
   ExternalLink,
-  Clock
+  Clock,
+  ArrowLeft
 } from 'lucide-react'
 
 // Move ImmersivePlaceCard completely outside to preserve animations
@@ -503,8 +503,8 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     // Don't navigate if already at target
     if (targetIndex === currentPlaceIndex) return
     
-    // Check if we've reached within 5 of the end and haven't requested more at this threshold yet
-    const triggerPoint = Math.max(0, allDisplayPlaces.length - 5)
+    // Check if we've reached the 10th suggestion and haven't requested more at this threshold yet
+    const triggerPoint = 9 // 10th suggestion (0-indexed)
     if (targetIndex >= triggerPoint && targetIndex > lastFetchTriggerIndex && !loadingMoreSuggestions) {
       setLastFetchTriggerIndex(targetIndex)
       // Request more suggestions in the background - we'll call this directly to avoid circular deps
@@ -880,7 +880,8 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
           })
         }
       } else {
-        // Add to wishlist
+        // Add to wishlist - include GPT metadata
+        const metadata = placeMetadata.get(place.place_id)
         const response = await fetch('/api/wishlist', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -890,7 +891,11 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
             placeVicinity: place.vicinity,
             placeRating: place.rating,
             placePhotoReference: place.photos?.[0]?.photo_reference || place.photos?.[0]?.name,
-            itineraryId: resolvedParams.id
+            itineraryId: resolvedParams.id,
+            gptTimeframe: metadata?.gptTimeframe,
+            gptDuration: metadata?.gptDuration,
+            locationLat: place.geometry?.location?.lat,
+            locationLng: place.geometry?.location?.lng
           })
         })
         
@@ -1028,9 +1033,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     explorePlaces(resolvedParams.id, dayId)
   }
 
-  const handleRefreshSuggestions = () => {
-    explorePlaces(resolvedParams.id, selectedDay || undefined)
-  }
 
   const getPhotoUrl = useCallback((photoReference?: string) => {
     if (!photoReference) {
@@ -1114,21 +1116,15 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push(`/itinerary/${resolvedParams.id}`)}
-              className="bg-black bg-opacity-60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm hover:bg-opacity-70 transition-all border border-white/20"
+              onClick={() => router.push(`/itinerary/${resolvedParams.id}/wishlist`)}
+              className="bg-black bg-opacity-60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm hover:bg-opacity-70 transition-all border border-white/20 flex items-center gap-2"
               style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
             >
-              ← Overview
+              <ArrowLeft className="h-4 w-4" />
+              Wishlist
             </button>
             <h1 className="text-lg font-semibold" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>{itinerary.destination}</h1>
           </div>
-          <button
-            onClick={handleRefreshSuggestions}
-            disabled={loadingExplore}
-            className="bg-black bg-opacity-60 backdrop-blur-sm p-2 rounded-lg hover:bg-opacity-70 transition-all border border-white/20"
-          >
-            <RefreshCw className={`h-5 w-5 ${loadingExplore ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </div>
 
@@ -1192,20 +1188,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
-      {/* Progress Indicator - Fixed Position */}
-      {!loadingExplore && allDisplayPlaces.length > 0 && (
-        <div className="absolute top-20 right-4 z-30 flex flex-col gap-2">
-          <div className="bg-black bg-opacity-60 backdrop-blur-sm rounded-full px-3 py-1 text-white text-sm border border-white/20" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
-            {currentPlaceIndex + 1} / {allDisplayPlaces.length}
-          </div>
-          {loadingMoreSuggestions && (
-            <div className="bg-black bg-opacity-60 backdrop-blur-sm rounded-full px-3 py-1 text-white text-xs border border-white/20 flex items-center gap-2" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Finding more...
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Empty State */}
       {!loadingExplore && allDisplayPlaces.length === 0 && (
@@ -1213,13 +1195,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
           <div>
             <Sparkles className="h-16 w-16 mx-auto mb-4 opacity-50" />
             <h2 className="text-xl font-semibold mb-2">No places found</h2>
-            <p className="opacity-75 mb-6">Try refreshing or changing your filters</p>
-            <button
-              onClick={handleRefreshSuggestions}
-              className="bg-sunset-coral-600 text-white px-6 py-3 rounded-lg hover:bg-sunset-coral-700 transition-colors"
-            >
-              Refresh Suggestions
-            </button>
+            <p className="opacity-75">Try exploring again later</p>
           </div>
         </div>
       )}
