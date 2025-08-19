@@ -97,10 +97,6 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
     }
   }, [status, router])
 
-  useEffect(() => {
-    fetchItinerary()
-  }, [resolvedParams.id, fetchItinerary])
-
   const fetchItinerary = useCallback(async () => {
     try {
       const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
@@ -127,6 +123,9 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
     }
   }, [resolvedParams.id])
 
+  useEffect(() => {
+    fetchItinerary()
+  }, [resolvedParams.id, fetchItinerary])
 
   const handleAddAccommodation = () => {
     setEditingAccommodation(null)

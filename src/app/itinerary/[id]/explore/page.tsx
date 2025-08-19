@@ -375,6 +375,41 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     }
   }, [status, router])
 
+  const fetchItinerary = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setItinerary(data)
+        // Set first day as default
+        if (data.days && data.days.length > 0) {
+          setSelectedDay(data.days[0].id)
+        }
+        // Automatically explore places when itinerary loads
+        // explorePlaces(data.id, data.days?.[0]?.id)
+      } else {
+        console.error('Failed to fetch itinerary')
+      }
+    } catch (error) {
+      console.error('Error fetching itinerary:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [resolvedParams.id])
+
+  const fetchWishlist = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/wishlist?itineraryId=${resolvedParams.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        const placeIds = new Set<string>(data.items.map((item: { placeId: string }) => item.placeId))
+        setWishlistItems(placeIds)
+      }
+    } catch (error) {
+      console.error('Error fetching wishlist:', error)
+    }
+  }, [resolvedParams.id])
+
   useEffect(() => {
     fetchItinerary()
     fetchWishlist()
@@ -508,7 +543,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
           if (response.ok) {
             const data = await response.json()
             // Append new suggestions
-            setGptSuggestions(prev => [...prev, ...(data.suggestions || [])])
+            // setGptSuggestions(prev => [...prev, ...(data.suggestions || [])])
             
             // Merge place metadata
             if (data.placeMetadata) {
@@ -802,41 +837,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   }, [currentPlaceIndex, currentImageIndex, allDisplayPlaces.length, isScrolling, isImageScrolling, navigateToPlace, navigateToImage])
 
 
-  const fetchItinerary = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
-      if (response.ok) {
-        const data = await response.json()
-        setItinerary(data)
-        // Set first day as default
-        if (data.days && data.days.length > 0) {
-          setSelectedDay(data.days[0].id)
-        }
-        // Automatically explore places when itinerary loads
-        explorePlaces(data.id, data.days?.[0]?.id)
-      } else {
-        console.error('Failed to fetch itinerary')
-      }
-    } catch (error) {
-      console.error('Error fetching itinerary:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [resolvedParams.id, explorePlaces])
-
-  const fetchWishlist = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/wishlist?itineraryId=${resolvedParams.id}`)
-      if (response.ok) {
-        const data = await response.json()
-        const placeIds = new Set<string>(data.items.map((item: { placeId: string }) => item.placeId))
-        setWishlistItems(placeIds)
-      }
-    } catch (error) {
-      console.error('Error fetching wishlist:', error)
-    }
-  }, [resolvedParams.id])
-
   const toggleWishlist = async (place: Place) => {
     const isInWishlist = wishlistItems.has(place.place_id)
     
@@ -890,7 +890,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       setLoadingMoreSuggestions(true)
     } else {
       setLoadingExplore(true)
-      setGptSuggestions([])
+      // setGptSuggestions([])
       // Reset categories only for initial load
       setCategories([])
       setLastFetchTriggerIndex(-1)
@@ -914,7 +914,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         
         if (append) {
           // Append new suggestions to existing ones
-          setGptSuggestions(prev => [...prev, ...(data.suggestions || [])])
+          // setGptSuggestions(prev => [...prev, ...(data.suggestions || [])])
           
           // Merge place metadata
           if (data.placeMetadata) {
@@ -947,7 +947,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
           }
         } else {
           // Initial load - replace everything
-          setGptSuggestions(data.suggestions || [])
+          // setGptSuggestions(data.suggestions || [])
           
           // Store place metadata
           if (data.placeMetadata) {
@@ -959,7 +959,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
           }
           
           // Update categories with places - convert to simple format for immersive view
-          const newCategories: { places: Place[] }[] = []
+          const newCategories: { id: string; places: Place[] }[] = []
           if (data.places) {
             Object.keys(data.places).forEach(categoryId => {
               newCategories.push({

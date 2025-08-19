@@ -54,10 +54,6 @@ export default function MembersPage({ params }: { params: Promise<{ id: string }
     }
   }, [status, router])
 
-  useEffect(() => {
-    fetchItinerary()
-  }, [resolvedParams.id, fetchItinerary])
-
   const fetchItinerary = useCallback(async () => {
     try {
       const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
@@ -73,6 +69,10 @@ export default function MembersPage({ params }: { params: Promise<{ id: string }
       setLoading(false)
     }
   }, [resolvedParams.id])
+
+  useEffect(() => {
+    fetchItinerary()
+  }, [resolvedParams.id, fetchItinerary])
 
   const handleAddMember = async () => {
     if (!newMemberEmail.trim() || !itinerary) return

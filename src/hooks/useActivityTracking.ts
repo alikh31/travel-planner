@@ -86,7 +86,7 @@ export function useActivityTracking({ itineraryId, sessionId, dayId }: ActivityT
     } catch (error) {
       console.error('Error starting place view tracking:', error)
     }
-  }, [itineraryId, sessionId, dayId, endPlaceView])
+  }, [itineraryId, sessionId, dayId])
 
   // End current place view
   const endPlaceView = useCallback(async () => {

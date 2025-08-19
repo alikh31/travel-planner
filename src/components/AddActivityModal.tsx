@@ -107,20 +107,6 @@ export default function AddActivityModal({
     }
   }, [isOpen, suggestedStartTime, newActivity.startTime, setNewActivity])
 
-  // Fetch wishlist items and itinerary activities when modal opens
-  useEffect(() => {
-    if (isOpen && itineraryId) {
-      fetchWishlistItems()
-    }
-  }, [isOpen, itineraryId, fetchWishlistItems])
-
-  // Set suggested start time when modal opens
-  useEffect(() => {
-    if (isOpen && suggestedStartTime && !newActivity.startTime) {
-      setNewActivity(prev => ({ ...prev, startTime: suggestedStartTime }))
-    }
-  }, [isOpen, suggestedStartTime, newActivity.startTime, setNewActivity])
-
   const fetchWishlistItems = useCallback(async () => {
     setLoading(true)
     try {
@@ -210,6 +196,20 @@ export default function AddActivityModal({
       setLoading(false)
     }
   }, [itineraryId, newActivity.startTime, previousActivityLocation])
+
+  // Fetch wishlist items and itinerary activities when modal opens
+  useEffect(() => {
+    if (isOpen && itineraryId) {
+      fetchWishlistItems()
+    }
+  }, [isOpen, itineraryId, fetchWishlistItems])
+
+  // Set suggested start time when modal opens
+  useEffect(() => {
+    if (isOpen && suggestedStartTime && !newActivity.startTime) {
+      setNewActivity(prev => ({ ...prev, startTime: suggestedStartTime }))
+    }
+  }, [isOpen, suggestedStartTime, newActivity.startTime, setNewActivity])
 
   const handleWishlistSelection = (item: WishlistItem) => {
     setSelectedWishlistItem(item)

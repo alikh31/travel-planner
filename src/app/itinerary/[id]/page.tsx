@@ -643,10 +643,10 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
     // Only update selectedDay from URL if there's an actual change
     // and we're not currently programmatically updating the URL ourselves
     // Also prevent changes during active polling to avoid mobile reset issues
-    if (dayFromUrl !== selectedDay && !isUpdatingUrlRef.current && !isRefreshing) {
+    if (dayFromUrl !== selectedDay && !isUpdatingUrlRef.current) {
       setSelectedDay(dayFromUrl)
     }
-  }, [searchParams, selectedDay, isRefreshing])
+  }, [searchParams, selectedDay])
 
   // Fetch accommodation for the selected day from backend
   useEffect(() => {
@@ -1091,7 +1091,6 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
         itinerary={itinerary}
         session={session}
         isAdmin={isAdmin}
-        isRefreshing={isRefreshing}
       />
 
       {/* Main Content */}
