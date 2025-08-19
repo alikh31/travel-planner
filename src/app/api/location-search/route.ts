@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCached, setCached, generateCacheKey, CACHE_TTLS } from '@/lib/cache-manager'
+import { getCached, setCached, generateCacheKey } from '@/lib/cache-manager'
 
 export async function POST(request: NextRequest) {
   try {

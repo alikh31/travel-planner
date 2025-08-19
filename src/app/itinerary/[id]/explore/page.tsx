@@ -18,7 +18,6 @@ import {
   ExternalLink,
   Clock
 } from 'lucide-react'
-import TripHeader from '@/components/TripHeader'
 
 // Move ImmersivePlaceCard completely outside to preserve animations
 const ImmersivePlaceCard = memo(({ 
@@ -250,9 +249,9 @@ const ImmersivePlaceCard = memo(({
               {enhancedPlace.reviews && enhancedPlace.reviews.length > 0 && (
                 <div className="opacity-85">
                   <p className="text-xs italic leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
-                    "{enhancedPlace.reviews[0].text.length > 120 
+                    &ldquo;{enhancedPlace.reviews[0].text.length > 120 
                       ? enhancedPlace.reviews[0].text.substring(0, 120) + '...' 
-                      : enhancedPlace.reviews[0].text}"
+                      : enhancedPlace.reviews[0].text}&rdquo;
                   </p>
                   <p className="text-xs mt-1 opacity-75">
                     — {enhancedPlace.reviews[0].author_name}
