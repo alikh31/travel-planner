@@ -175,6 +175,51 @@ export async function POST(request: NextRequest) {
         .slice(0, 10)
         .map(a => a.placeName)
 
+      // Get latest 50 activities with detailed analysis
+      const latest50Activities = userActivities.slice(0, 50)
+      const gptSuggestedPlaces = latest50Activities.filter(a => a.isGptSuggestion)
+      const nearbySearchPlaces = latest50Activities.filter(a => a.searchSource === 'nearby_search')
+      const textSearchPlaces = latest50Activities.filter(a => a.searchSource === 'text_search')
+      
+      // Analyze engagement by source
+      const gptEngagement = gptSuggestedPlaces.length > 0 ? {
+        avgViewTime: gptSuggestedPlaces.filter(a => a.totalViewTime).reduce((sum, a) => sum + (a.totalViewTime || 0), 0) / gptSuggestedPlaces.filter(a => a.totalViewTime).length,
+        avgImageSlides: gptSuggestedPlaces.reduce((sum, a) => sum + a.imageSlides, 0) / gptSuggestedPlaces.length,
+        wishlistRate: gptSuggestedPlaces.filter(a => a.addedToWishlist).length / gptSuggestedPlaces.length
+      } : null
+
+      // Analyze engagement by category
+      const categoryEngagement = latest50Activities.reduce((acc, activity) => {
+        if (activity.gptCategory) {
+          if (!acc[activity.gptCategory]) {
+            acc[activity.gptCategory] = { count: 0, totalViewTime: 0, wishlistAdds: 0, imageSlides: 0 }
+          }
+          acc[activity.gptCategory].count++
+          acc[activity.gptCategory].totalViewTime += activity.totalViewTime || 0
+          acc[activity.gptCategory].wishlistAdds += activity.addedToWishlist ? 1 : 0
+          acc[activity.gptCategory].imageSlides += activity.imageSlides
+        }
+        return acc
+      }, {} as Record<string, { count: number; totalViewTime: number; wishlistAdds: number; imageSlides: number }>)
+
+      // Find preferred categories based on engagement
+      const preferredCategories = Object.entries(categoryEngagement)
+        .map(([category, stats]) => ({
+          category,
+          avgViewTime: stats.totalViewTime / stats.count,
+          wishlistRate: stats.wishlistAdds / stats.count,
+          avgImageSlides: stats.imageSlides / stats.count,
+          count: stats.count
+        }))
+        .filter(cat => cat.count >= 3) // Only include categories with at least 3 interactions
+        .sort((a, b) => (b.avgViewTime + b.wishlistRate * 1000 + b.avgImageSlides * 100) - (a.avgViewTime + a.wishlistRate * 1000 + a.avgImageSlides * 100))
+        .slice(0, 5)
+
+      // Identify browsing patterns
+      const recentWishlistAdds = latest50Activities.filter(a => a.addedToWishlist).slice(0, 10)
+      const quickDismissals = latest50Activities.filter(a => a.totalViewTime && a.totalViewTime < 3000 && a.imageSlides < 2).slice(0, 10)
+      const deepEngagements = latest50Activities.filter(a => a.totalViewTime && a.totalViewTime > 15000).slice(0, 10)
+
       prompt += `\n\nMy Browsing Behavior Analysis:
 - I have viewed ${totalActivities} places while exploring
 - Average time spent viewing places: ${avgViewTime ? Math.round(avgViewTime / 1000) : 'N/A'} seconds
@@ -186,7 +231,53 @@ export async function POST(request: NextRequest) {
 - Places I spent the most time viewing: ${mostViewedPlaces.join(', ')}`
       }
 
-      prompt += `\n\nBased on this behavior, suggest places that align with my demonstrated interests and engagement patterns.`
+      // Add detailed analysis of latest 50 activities
+      prompt += `\n\nDetailed Analysis of My Latest 50 Activities:`
+      
+      if (gptEngagement && gptSuggestedPlaces.length > 0) {
+        prompt += `
+- GPT Suggested Places Performance (${gptSuggestedPlaces.length} places):
+  * Average view time: ${Math.round(gptEngagement.avgViewTime / 1000)} seconds
+  * Average images viewed: ${Math.round(gptEngagement.avgImageSlides)}
+  * Wishlist conversion: ${Math.round(gptEngagement.wishlistRate * 100)}%`
+      }
+
+      if (preferredCategories.length > 0) {
+        prompt += `
+- My Most Engaged Categories:
+${preferredCategories.map(cat => 
+  `  * ${cat.category}: ${cat.count} views, ${Math.round(cat.avgViewTime / 1000)}s avg, ${Math.round(cat.wishlistRate * 100)}% wishlist rate`
+).join('\n')}`
+      }
+
+      if (recentWishlistAdds.length > 0) {
+        prompt += `
+- Recent Places I Added to Wishlist: ${recentWishlistAdds.map(a => a.placeName).join(', ')}`
+      }
+
+      if (quickDismissals.length > 0) {
+        prompt += `
+- Places I Quickly Dismissed (low engagement): ${quickDismissals.map(a => a.placeName).slice(0, 5).join(', ')}`
+      }
+
+      if (deepEngagements.length > 0) {
+        prompt += `
+- Places I Spent Most Time Exploring: ${deepEngagements.map(a => `${a.placeName} (${Math.round((a.totalViewTime || 0) / 1000)}s)`).slice(0, 5).join(', ')}`
+      }
+
+      // Add source preference analysis
+      const sourceStats = {
+        gpt: gptSuggestedPlaces.length,
+        nearby: nearbySearchPlaces.length,
+        text: textSearchPlaces.length
+      }
+      
+      if (sourceStats.gpt > 0 || sourceStats.nearby > 0 || sourceStats.text > 0) {
+        prompt += `
+- Place Discovery Preferences: ${sourceStats.gpt > sourceStats.nearby + sourceStats.text ? 'I prefer AI-curated suggestions' : sourceStats.nearby > sourceStats.gpt + sourceStats.text ? 'I prefer exploring nearby places' : 'I engage with various discovery methods'}`
+      }
+
+      prompt += `\n\nBased on this detailed behavior analysis, suggest places that specifically align with my demonstrated engagement patterns and category preferences.`
     }
 
     prompt += `
