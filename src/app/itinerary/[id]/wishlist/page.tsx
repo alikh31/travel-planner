@@ -183,8 +183,8 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          gptTimeframe: item.gptTimeframe,
-          gptDuration: item.gptDuration,
+          gptTimeframe: item.gptTimeframe || 'anytime',
+          gptDuration: item.gptDuration || 60,
           existingActivities,
           days: itinerary?.days?.map((day: any, index: number) => ({
             dayIndex: index,
@@ -202,20 +202,22 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
         // No suggested slot found, use defaults but still prefill day
         setSuggestedTimeSlot(null)
         setCustomDayIndex(0) // Default to first day
-        setCustomTime(item.gptTimeframe === 'morning' ? '09:00' : 
-                     item.gptTimeframe === 'afternoon' ? '14:00' :
-                     item.gptTimeframe === 'evening' ? '18:00' :
-                     item.gptTimeframe === 'night' ? '20:00' : '12:00')
+        const timeframe = item.gptTimeframe || 'anytime'
+        setCustomTime(timeframe === 'morning' ? '09:00' : 
+                     timeframe === 'afternoon' ? '14:00' :
+                     timeframe === 'evening' ? '18:00' :
+                     timeframe === 'night' ? '20:00' : '12:00')
       }
     } catch (error) {
       console.error('Error finding time slot:', error)
       // Fall back to defaults but still prefill day
       setSuggestedTimeSlot(null)
       setCustomDayIndex(0) // Default to first day
-      setCustomTime(item.gptTimeframe === 'morning' ? '09:00' : 
-                   item.gptTimeframe === 'afternoon' ? '14:00' :
-                   item.gptTimeframe === 'evening' ? '18:00' :
-                   item.gptTimeframe === 'night' ? '20:00' : '12:00')
+      const timeframe = item.gptTimeframe || 'anytime'
+      setCustomTime(timeframe === 'morning' ? '09:00' : 
+                   timeframe === 'afternoon' ? '14:00' :
+                   timeframe === 'evening' ? '18:00' :
+                   timeframe === 'night' ? '20:00' : '12:00')
     }
 
     setCustomDuration((item.gptDuration || 60).toString())
@@ -293,8 +295,8 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          gptTimeframe: item.gptTimeframe,
-          gptDuration: item.gptDuration,
+          gptTimeframe: item.gptTimeframe || 'anytime',
+          gptDuration: item.gptDuration || 60,
           existingActivities,
           days: [{
             dayIndex: dayIndex,
@@ -309,11 +311,11 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
         return result.timeSlot.startTime
       } else {
         // If no optimal slot found, suggest based on timeframe and existing activities
-        return suggestTimeBasedOnActivities(existingActivities, item.gptTimeframe)
+        return suggestTimeBasedOnActivities(existingActivities, item.gptTimeframe || 'anytime')
       }
     } catch (error) {
       console.error('Error calculating time for day:', error)
-      return suggestTimeBasedOnActivities(existingActivities, item.gptTimeframe)
+      return suggestTimeBasedOnActivities(existingActivities, item.gptTimeframe || 'anytime')
     }
   }
 
@@ -442,6 +444,132 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
     itinerary?.members?.some((m: any) => m.user.id === session.user.id && m.role === 'admin') || 
     itinerary?.createdBy === session.user.id : false
 
+  // Group wishlist items by city
+  const groupedWishlistItems = wishlistItems.reduce((groups: { [key: string]: WishlistItem[] }, item) => {
+    // Extract city from placeVicinity (which contains formattedAddress from Google Places API)
+    let city = 'Other'
+    
+    if (item.placeVicinity) {
+      // Google Places formattedAddress typically follows patterns like:
+      // "123 Main St, San Francisco, CA 94102, USA"
+      // "Eiffel Tower, 5 Avenue Anatole France, 75007 Paris, France"
+      // "1-chōme-18-31 Gotenyama, Musashino, Tokyo 180-0005, Japan"
+      
+      const parts = item.placeVicinity.split(',').map(p => p.trim())
+      
+      // Known major cities to prioritize
+      const majorCities = [
+        'Tokyo', 'Osaka', 'Kyoto', 'Yokohama', 'Nagoya', 'Sapporo', 'Kobe', 'Fukuoka',
+        'New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 
+        'San Diego', 'Dallas', 'San Jose', 'Austin', 'San Francisco', 'Seattle', 'Denver', 'Boston',
+        'London', 'Paris', 'Berlin', 'Madrid', 'Rome', 'Amsterdam', 'Barcelona', 'Munich', 'Milan',
+        'Vienna', 'Prague', 'Budapest', 'Warsaw', 'Dublin', 'Copenhagen', 'Stockholm', 'Oslo',
+        'Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Auckland', 'Toronto', 'Vancouver', 'Montreal',
+        'Beijing', 'Shanghai', 'Guangzhou', 'Shenzhen', 'Hong Kong', 'Singapore', 'Seoul', 'Bangkok',
+        'Mumbai', 'Delhi', 'Bangalore', 'Dubai', 'Cairo', 'Istanbul', 'Moscow', 'São Paulo', 'Rio de Janeiro',
+        'Buenos Aires', 'Mexico City', 'Lima', 'Bogotá', 'Santiago', 'Caracas'
+      ]
+      
+      // First, check if any part matches a known major city
+      for (const part of parts) {
+        const cleanPart = part.replace(/\s*\d{3}-\d{4}/, '').trim() // Remove Japanese postal codes
+        for (const knownCity of majorCities) {
+          if (cleanPart.toLowerCase().includes(knownCity.toLowerCase())) {
+            city = knownCity
+            break
+          }
+        }
+        if (city !== 'Other') break
+      }
+      
+      // If no major city found, use heuristics
+      if (city === 'Other') {
+        // Remove parts that are definitely not cities
+        const filteredParts = parts.filter(part => {
+          // Skip if it's a country name
+          const lowerPart = part.toLowerCase()
+          const countries = ['usa', 'united states', 'uk', 'united kingdom', 'japan', 'france',
+            'germany', 'italy', 'spain', 'canada', 'australia', 'mexico', 'brazil', 'argentina',
+            'india', 'china', 'south korea', 'thailand', 'indonesia', 'philippines', 'vietnam',
+            'netherlands', 'belgium', 'switzerland', 'austria', 'sweden', 'norway', 'denmark',
+            'finland', 'poland', 'czech republic', 'hungary', 'greece', 'portugal', 'ireland']
+          if (countries.includes(lowerPart)) {
+            return false
+          }
+          
+          // Skip if it's just a postal/zip code
+          if (/^\d{3}-\d{4}$/.test(part) || // Japanese postal code
+              /^\d{5,6}(-\d{4})?$/.test(part) || // US ZIP code
+              /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/.test(part) || // Canadian postal code
+              /^[A-Z]{1,2}\d{1,2}\s?\d[A-Z]{2}$/.test(part)) { // UK postcode
+            return false
+          }
+          
+          // Skip if it's a US state abbreviation
+          if (/^[A-Z]{2}$/.test(part) && part.length === 2) {
+            return false
+          }
+          
+          // Skip if it contains "Prefecture" or similar administrative terms
+          if (part.includes('Prefecture') || part.includes('Province') || part.includes('County')) {
+            return false
+          }
+          
+          return true
+        })
+        
+        // For Japanese addresses: often formatted as "district, city postal-code"
+        // The city is typically the part before the postal code
+        if (parts.some(p => /^\d{3}-\d{4}/.test(p))) {
+          // Find the part just before the postal code
+          for (let i = 0; i < parts.length; i++) {
+            if (/^\d{3}-\d{4}/.test(parts[i]) && i > 0) {
+              city = parts[i - 1].trim()
+              break
+            }
+          }
+        }
+        
+        // If still no city found, use general heuristics
+        if (city === 'Other' && filteredParts.length > 0) {
+          if (filteredParts.length === 1) {
+            city = filteredParts[0]
+          } else if (filteredParts.length === 2) {
+            // Usually "landmark/street, city"
+            city = filteredParts[1]
+          } else {
+            // For multi-part addresses, city is often second-to-last
+            city = filteredParts[filteredParts.length - 2] || filteredParts[filteredParts.length - 1]
+          }
+        }
+      }
+      
+      // Clean up city name
+      city = city.replace(/\s*\d{3}-\d{4}/, '') // Remove Japanese postal codes if attached
+              .replace(/ City$/, '') // Remove "City" suffix
+              .replace(/^(Ward|District|Borough) of /, '') // Remove prefixes
+              .trim()
+      
+      // Final validation
+      if (!city || city.length === 0 || /^\d/.test(city)) {
+        city = 'Other'
+      }
+    }
+    
+    if (!groups[city]) {
+      groups[city] = []
+    }
+    groups[city].push(item)
+    return groups
+  }, {})
+
+  // Sort cities alphabetically, with "Other" at the end
+  const sortedCities = Object.keys(groupedWishlistItems).sort((a, b) => {
+    if (a === 'Other') return 1
+    if (b === 'Other') return -1
+    return a.localeCompare(b)
+  })
+
   return (
     <div className="min-h-screen bg-cloud-white">
       <TripHeader 
@@ -484,8 +612,18 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {wishlistItems.map((item) => (
+          <div className="space-y-8">
+            {sortedCities.map((city) => (
+              <div key={city}>
+                <div className="flex items-center gap-2 mb-4">
+                  <MapPin className="h-5 w-5 text-sunset-coral-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">{city}</h2>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                    {groupedWishlistItems[city].length} {groupedWishlistItems[city].length === 1 ? 'place' : 'places'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {groupedWishlistItems[city].map((item) => (
               <div key={item.id} className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-200 ${
                 item.isInItinerary ? 'bg-gray-50' : ''
               }`}>
@@ -535,22 +673,16 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
                     )}
 
                     {/* GPT Suggestions Display */}
-                    {(item.gptTimeframe || item.gptDuration) && (
-                      <div className="flex items-center gap-4 text-xs text-gray-600 mb-3 bg-blue-50 px-2 py-1 rounded">
-                        {item.gptTimeframe && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            <span className="capitalize">{item.gptTimeframe}</span>
-                          </div>
-                        )}
-                        {item.gptDuration && (
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            <span>{item.gptDuration}min</span>
-                        </div>
-                        )}
+                    <div className="flex items-center gap-4 text-xs text-gray-600 mb-3 bg-blue-50 px-2 py-1 rounded">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span className="capitalize">{item.gptTimeframe || 'anytime'}</span>
                       </div>
-                    )}
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{item.gptDuration || 60}min</span>
+                      </div>
+                    </div>
 
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs text-gray-400">
@@ -613,6 +745,9 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
                       </button>
                     )}
                   </div>
+                </div>
+              </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -721,7 +856,7 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
                       onClick={() => {
                         setCustomDayIndex(suggestedTimeSlot.dayIndex)
                         setCustomTime(suggestedTimeSlot.startTime)
-                        setCustomDuration(selectedWishlistItem?.gptDuration?.toString() || '60')
+                        setCustomDuration((selectedWishlistItem?.gptDuration || 60).toString())
                       }}
                       className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors"
                     >

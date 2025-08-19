@@ -5,8 +5,8 @@ const NEW_PLACES_API_BASE = 'https://places.googleapis.com/v1'
 
 // Field masks for different data tiers
 export const FIELD_MASKS = {
-  BASIC: 'places.id,places.displayName,places.primaryType,places.location,places.rating,places.userRatingCount,places.priceLevel,places.photos',
-  PREFERRED: 'places.id,places.displayName,places.primaryType,places.location,places.rating,places.userRatingCount,places.priceLevel,places.photos,places.editorialSummary,places.reviews,places.currentOpeningHours',
+  BASIC: 'places.id,places.displayName,places.primaryType,places.location,places.rating,places.userRatingCount,places.priceLevel,places.photos,places.formattedAddress',
+  PREFERRED: 'places.id,places.displayName,places.primaryType,places.location,places.rating,places.userRatingCount,places.priceLevel,places.photos,places.formattedAddress,places.editorialSummary,places.reviews,places.currentOpeningHours',
   DETAILS_BASIC: 'id,displayName,primaryType,location,rating,userRatingCount,priceLevel,photos,formattedAddress',
   DETAILS_PREFERRED: 'id,displayName,primaryType,location,rating,userRatingCount,priceLevel,photos,formattedAddress,editorialSummary,reviews,currentOpeningHours'
 }
@@ -296,7 +296,7 @@ export function convertLegacyPlace(place: Place): any {
     rating: place.rating,
     user_ratings_total: place.userRatingCount,
     price_level: place.priceLevel ? parseInt(place.priceLevel.replace('PRICE_LEVEL_', '')) : undefined,
-    vicinity: place.formattedAddress,
+    vicinity: place.formattedAddress || '',
     opening_hours: place.currentOpeningHours ? {
       open_now: place.currentOpeningHours.openNow
     } : undefined,

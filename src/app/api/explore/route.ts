@@ -6,7 +6,8 @@ import OpenAI from 'openai'
 import { 
   searchText, 
   geocodeAddress, 
-  convertLegacyPlace 
+  convertLegacyPlace,
+  getPlaceDetails
 } from '@/lib/google-maps-new'
 import { saveChatGPTConversation } from '@/lib/chatgpt-cache'
 
@@ -422,7 +423,11 @@ CRITICAL: Follow this format exactly. Do not deviate.`
       })
       
       if (places.length > 0) {
-        const convertedPlace = convertLegacyPlace(places[0])
+        // Fetch place details to get the formatted address
+        const placeDetails = await getPlaceDetails(places[0].id, { usePreferred: false })
+        const placeWithAddress = placeDetails || places[0]
+        
+        const convertedPlace = convertLegacyPlace(placeWithAddress)
         allPlaces.push(convertedPlace)
         
         // Use the ChatGPT-determined category, timeframe, and duration
