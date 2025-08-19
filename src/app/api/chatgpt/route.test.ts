@@ -14,7 +14,9 @@ jest.mock('@/lib/auth', () => ({
 
 jest.mock('@/lib/chatgpt', () => ({
   sendToChatGPT: jest.fn(),
-  createTravelPrompt: jest.fn()
+  createTravelPrompt: jest.fn(),
+  createLocationExplorationPrompt: jest.fn(),
+  createLocationRecommendationPrompt: jest.fn()
 }))
 
 const mockGetServerSession = getServerSession as jest.MockedFunction<typeof getServerSession>
@@ -24,12 +26,14 @@ const mockCreateTravelPrompt = chatgptLib.createTravelPrompt as jest.MockedFunct
 describe('/api/chatgpt', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    // Mock environment variable
+    // Mock environment variables
     process.env.OPENAI_API_KEY = 'test-api-key'
+    process.env.OPENAI_MODEL = 'gpt-3.5-turbo'
   })
 
   afterEach(() => {
     delete process.env.OPENAI_API_KEY
+    delete process.env.OPENAI_MODEL
   })
 
   describe('POST', () => {
@@ -171,13 +175,14 @@ describe('/api/chatgpt', () => {
   })
 
   describe('GET', () => {
-    it('should return health check with API key status', async () => {
+    it('should return health check with API key status and model info', async () => {
       const response = await GET()
       const data = await response.json()
 
       expect(response.status).toBe(200)
       expect(data.status).toBe('ok')
       expect(data.openai_configured).toBe(true)
+      expect(data.openai_model).toBe('gpt-3.5-turbo')
     })
 
     it('should return false for openai_configured when no API key', async () => {
@@ -189,6 +194,7 @@ describe('/api/chatgpt', () => {
       expect(response.status).toBe(200)
       expect(data.status).toBe('ok')
       expect(data.openai_configured).toBe(false)
+      expect(data.openai_model).toBe('gpt-3.5-turbo') // Should still return default model
     })
   })
 })

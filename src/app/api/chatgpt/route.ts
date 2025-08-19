@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Send to ChatGPT
     const response = await sendToChatGPT(
       chatMessages,
-      model || 'gpt-3.5-turbo',
+      model || process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
       maxTokens || 1000
     )
 
@@ -75,10 +75,12 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     const hasApiKey = !!process.env.OPENAI_API_KEY
+    const model = process.env.OPENAI_MODEL || 'gpt-3.5-turbo'
     
     return NextResponse.json({
       status: 'ok',
-      openai_configured: hasApiKey
+      openai_configured: hasApiKey,
+      openai_model: model
     })
   } catch (error) {
     return NextResponse.json(

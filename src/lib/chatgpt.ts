@@ -5,10 +5,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-export interface ChatGPTMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
+// Re-export from the client-safe prompts file
+export type { ChatGPTMessage } from './chatgpt-prompts'
+export { createTravelPrompt, createLocationExplorationPrompt, createLocationRecommendationPrompt } from './chatgpt-prompts'
+
+// Import for local use
+import type { ChatGPTMessage } from './chatgpt-prompts'
 
 export interface ChatGPTResponse {
   content: string
@@ -28,7 +30,7 @@ export interface ChatGPTResponse {
  */
 export async function sendToChatGPT(
   messages: ChatGPTMessage[],
-  model: string = 'gpt-3.5-turbo',
+  model: string = process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
   maxTokens: number = 1000
 ): Promise<ChatGPTResponse> {
   if (!process.env.OPENAI_API_KEY) {
@@ -36,12 +38,25 @@ export async function sendToChatGPT(
   }
 
   try {
-    const completion = await openai.chat.completions.create({
+    // Build completion parameters based on model capabilities
+    const completionParams: any = {
       model,
       messages,
-      max_tokens: maxTokens,
-      temperature: 0.7,
-    })
+    }
+
+    // Set temperature (some models like gpt-5-mini only support default temperature of 1)
+    if (!model.includes('gpt-5')) {
+      completionParams.temperature = 0.7
+    }
+
+    // Set token limit parameter based on model
+    if (model.includes('gpt-4o') || model.includes('gpt-5') || model.includes('o1')) {
+      completionParams.max_completion_tokens = maxTokens
+    } else {
+      completionParams.max_tokens = maxTokens
+    }
+
+    const completion = await openai.chat.completions.create(completionParams)
 
     const choice = completion.choices[0]
     if (!choice?.message?.content) {
@@ -62,22 +77,3 @@ export async function sendToChatGPT(
   }
 }
 
-/**
- * Helper function to create travel-related prompts
- */
-export function createTravelPrompt(userMessage: string, context?: string): ChatGPTMessage[] {
-  const systemMessage: ChatGPTMessage = {
-    role: 'system',
-    content: `You are a helpful travel planning assistant. You provide practical, accurate, and personalized travel advice. 
-    Focus on specific recommendations for activities, accommodations, restaurants, transportation, and local insights.
-    Always consider budget, time constraints, and traveler preferences when making suggestions.
-    ${context ? `Additional context: ${context}` : ''}`
-  }
-
-  const userMsg: ChatGPTMessage = {
-    role: 'user',
-    content: userMessage
-  }
-
-  return [systemMessage, userMsg]
-}

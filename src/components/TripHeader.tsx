@@ -106,6 +106,7 @@ export default function TripHeader({
           </div>
         </div>
 
+
       </div>
     </header>
   )

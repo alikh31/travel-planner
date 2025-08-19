@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import TripHeader from '@/components/TripHeader'
 import AddAccommodationModal from '@/components/AddAccommodationModal'
+import { convertToBackendImageUrl } from '@/lib/image-utils'
 
 interface Accommodation {
   id: string
@@ -298,7 +299,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
         itinerary={itinerary}
         session={session}
         isAdmin={isAdmin}
-        currentPage="Accommodation"
+        currentPage="accommodation"
         backUrl={`/itinerary/${resolvedParams.id}`}
       />
 
@@ -371,7 +372,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
                       <div className="flex-shrink-0">
                         {accommodation.photoUrl ? (
                           <img
-                            src={accommodation.photoUrl}
+                            src={convertToBackendImageUrl(accommodation.photoUrl, 300)}
                             alt={accommodation.name}
                             className="w-24 h-24 object-cover rounded-lg"
                             onError={(e) => {

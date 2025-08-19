@@ -13,7 +13,7 @@ import DaysAndActivities from '@/components/DaysAndActivities'
 import MapSection from '@/components/MapSection'
 import AddActivityModal from '@/components/AddActivityModal'
 import EditActivityModal from '@/components/EditActivityModal'
-import { getPlacePhoto } from '@/lib/googleMaps'
+import { getPlacePhotoFromBackend } from '@/lib/image-utils'
 
 // Helper functions
 const getEndTime = (startTime?: string, duration?: number): string | undefined => {
@@ -112,7 +112,7 @@ const ActivityItem = memo(({
   useEffect(() => {
     if (activity.locationPlaceId && !locationImage && !imageLoading) {
       setImageLoading(true)
-      getPlacePhoto(activity.locationPlaceId)
+      getPlacePhotoFromBackend(activity.locationPlaceId)
         .then((photoUrl) => {
           setLocationImage(photoUrl)
         })

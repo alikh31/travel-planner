@@ -50,6 +50,8 @@ model User {
   suggestions        Suggestion[]    @relation("SuggestionCreator")
   votes              Vote[]
   comments           Comment[]
+  wishlistItems      WishlistItem[]
+  userActivities     UserActivity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -193,4 +195,57 @@ model Comment {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model WishlistItem {
+  id          String @id @default(cuid())
+  userId      String
+  placeId     String  // Google Places ID
+  placeName   String
+  placeVicinity String?
+  placeRating Float?
+  placePhotoReference String?
+  itineraryId String  // Associated with which itinerary this was found
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, placeId, itineraryId])
+}
+
+model UserActivity {
+  id            String @id @default(cuid())
+  userId        String
+  itineraryId   String
+  sessionId     String    // Unique identifier for the explore session
+  placeId       String    // Google Places ID
+  placeName     String
+  placeIndex    Int       // Position in the suggestion list (0-based)
+  
+  // Time tracking
+  viewStartTime DateTime  // When user first saw this place
+  viewEndTime   DateTime? // When user moved away from this place
+  totalViewTime Int?      // Total milliseconds spent viewing (calculated)
+  
+  // Interaction tracking
+  imageSlides   Int @default(0) // Number of images they scrolled through
+  addedToWishlist Boolean @default(false) // Did they add it to wishlist
+  timeToWishlist Int? // Milliseconds from viewStart to wishlist add (if applicable)
+  
+  // Context
+  dayId         String? // Which day they were exploring for
+  
+  // GPT source tracking
+  isGptSuggestion Boolean @default(false) // Whether this place came from GPT suggestions
+  gptCategory     String? // Category of the GPT suggestion (e.g., "restaurant", "attraction", etc.)
+  searchSource    String? // Source of the place ("gpt", "nearby_search", "text_search")
+  
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId, sessionId])
+  @@index([placeId])
 }
