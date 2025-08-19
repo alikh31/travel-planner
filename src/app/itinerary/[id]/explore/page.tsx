@@ -105,7 +105,7 @@ const ImmersivePlaceCard = memo(({
             }}
             onDoubleClick={handleDoubleClick}
           >
-            {photos.map((photo, index) => {
+            {photos.map((photo: any, index: number) => {
               // Generate stable image key
               const imageKey = `${enhancedPlace.place_id}-${index}`
               
@@ -154,7 +154,7 @@ const ImmersivePlaceCard = memo(({
           {/* Image Navigation Dots */}
           {photos.length > 1 && isCurrentPlace && (
             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-20">
-              {photos.map((_, index) => (
+              {photos.map((_: any, index: number) => (
                 <button
                   key={index}
                   onClick={(e) => {
@@ -312,6 +312,7 @@ interface Place {
   }
   photos?: Array<{
     photo_reference: string
+    name?: string
   }>
   geometry?: {
     location: {
@@ -758,7 +759,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       const response = await fetch(`/api/wishlist?itineraryId=${resolvedParams.id}`)
       if (response.ok) {
         const data = await response.json()
-        const placeIds = new Set(data.items.map((item: any) => item.placeId))
+        const placeIds = new Set<string>(data.items.map((item: any) => item.placeId))
         setWishlistItems(placeIds)
       }
     } catch (error) {

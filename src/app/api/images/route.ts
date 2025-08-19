@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // Check cache first
     const cached = await getCachedBinary(cacheKey, 'jpg')
     if (cached) {
-      return new NextResponse(cached, {
+      return new NextResponse(cached as BodyInit, {
         headers: {
           'Content-Type': 'image/jpeg',
           'Cache-Control': 'public, max-age=86400', // Browser cache for 1 day
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     // Cache the image
     await setCachedBinary(cacheKey, imageBuffer, 'jpg', CACHE_TTLS.IMAGES)
     
-    return new NextResponse(imageBuffer, {
+    return new NextResponse(imageBuffer as BodyInit, {
       headers: {
         'Content-Type': response.headers.get('content-type') || 'image/jpeg',
         'Cache-Control': 'public, max-age=86400',

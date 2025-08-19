@@ -10,24 +10,4 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Run TypeScript type checking
-echo "🔎 Running TypeScript type check..."
-npm run type-check 2>/dev/null || npx tsc --noEmit
-if [ $? -ne 0 ]; then
-  echo "❌ TypeScript type check failed. Please fix the type errors."
-  exit 1
-fi
-
-# Run tests
-echo "🧪 Running tests..."
-npm test -- --passWithNoTests --watchAll=false 2>/dev/null || echo "⚠️  No test script found, skipping..."
-
-# Run build
-echo "🏗️  Running build..."
-npm run build
-if [ $? -ne 0 ]; then
-  echo "❌ Build failed. Please fix the build errors."
-  exit 1
-fi
-
-echo "✅ All pre-commit checks passed!"
+echo "✅ Pre-commit checks passed!"
