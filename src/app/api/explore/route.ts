@@ -9,6 +9,7 @@ import {
   geocodeAddress, 
   convertLegacyPlace 
 } from '@/lib/google-maps-new'
+import { saveChatGPTRequest, saveChatGPTResponse } from '@/lib/chatgpt-cache'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -211,22 +212,37 @@ Return only the place names, one per line, without numbers or bullet points.`
 
     // Get GPT suggestions
     let gptSuggestions: string[] = []
+    let requestTimestamp: string = ''
+    
     try {
+      const messages = [
+        {
+          role: 'system' as const,
+          content: 'You are a knowledgeable travel assistant specialized in personalized recommendations. Use the user\'s browsing behavior, wishlist preferences, and planned activities to suggest places they\'re most likely to enjoy. Focus on quality over quantity and consider their demonstrated interests and engagement patterns.'
+        },
+        {
+          role: 'user' as const,
+          content: prompt
+        }
+      ]
+
+      // Cache the request
+      requestTimestamp = await saveChatGPTRequest(
+        itineraryId, 
+        messages, 
+        'gpt-4o-mini',
+        { maxTokens: 800, temperature: 0.7 }
+      )
+
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a knowledgeable travel assistant specialized in personalized recommendations. Use the user\'s browsing behavior, wishlist preferences, and planned activities to suggest places they\'re most likely to enjoy. Focus on quality over quantity and consider their demonstrated interests and engagement patterns.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
+        messages,
         max_tokens: 800,
         temperature: 0.7,
       })
+
+      // Cache the response
+      await saveChatGPTResponse(itineraryId, requestTimestamp, completion)
 
       const response = completion.choices[0]?.message?.content || ''
       gptSuggestions = response
@@ -237,6 +253,12 @@ Return only the place names, one per line, without numbers or bullet points.`
 
     } catch (gptError) {
       console.error('GPT API error:', gptError)
+      
+      // Cache the error response
+      if (requestTimestamp) {
+        await saveChatGPTResponse(itineraryId, requestTimestamp, null, `${gptError}`)
+      }
+      
       // Continue without GPT suggestions if API fails
     }
 

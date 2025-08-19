@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCacheStats, clearExpiredCache, getCacheConfiguration } from '@/lib/cache-manager'
 import { getCacheConfigInfo } from '@/lib/cache-config'
+import { getAllChatGPTCacheStats } from '@/lib/chatgpt-cache'
 
 export async function GET() {
   try {
@@ -14,6 +15,9 @@ export async function GET() {
     const configInfo = getCacheConfigInfo()
     const cacheConfig = getCacheConfiguration()
     
+    // Get ChatGPT cache stats
+    const chatgptStats = await getAllChatGPTCacheStats()
+    
     return NextResponse.json({
       success: true,
       stats: {
@@ -26,6 +30,13 @@ export async function GET() {
             sizeMB: (value.size / (1024 * 1024)).toFixed(2)
           }
         }), {})
+      },
+      chatgpt: {
+        totalTrips: chatgptStats.totalTrips,
+        totalRequests: chatgptStats.totalRequests,
+        totalResponses: chatgptStats.totalResponses,
+        totalFiles: chatgptStats.totalFiles,
+        tripBreakdown: chatgptStats.tripStats
       },
       directory: {
         path: cacheConfig.baseDir,
