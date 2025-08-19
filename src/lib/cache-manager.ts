@@ -1,10 +1,13 @@
 import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
-
-const CACHE_BASE_DIR = path.join(process.cwd(), '.cache')
-
 import { CACHE_CONFIG } from './cache-config'
+
+// Allow configurable cache directory via environment variable
+// Default to .cache in the project root
+export const CACHE_BASE_DIR = process.env.CACHE_BASE_DIR 
+  ? path.resolve(process.env.CACHE_BASE_DIR)
+  : path.join(process.cwd(), '.cache')
 
 // Export cache TTLs for backward compatibility
 export const CACHE_TTLS = {
@@ -193,6 +196,21 @@ export async function clearExpiredCache(): Promise<void> {
       }
     } catch (error) {
       // Directory might not exist yet
+    }
+  }
+}
+
+/**
+ * Gets the current cache configuration
+ */
+export function getCacheConfiguration() {
+  return {
+    baseDir: CACHE_BASE_DIR,
+    isCustomDir: !!process.env.CACHE_BASE_DIR,
+    ttls: {
+      places: CACHE_CONFIG.PLACES.TTL_HOURS,
+      images: CACHE_CONFIG.IMAGES.TTL_HOURS,
+      searches: CACHE_CONFIG.SEARCHES.TTL_HOURS
     }
   }
 }

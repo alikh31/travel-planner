@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getCacheStats, clearExpiredCache } from '@/lib/cache-manager'
+import { getCacheStats, clearExpiredCache, getCacheConfiguration } from '@/lib/cache-manager'
 import { getCacheConfigInfo } from '@/lib/cache-config'
 
 export async function GET() {
@@ -12,6 +12,7 @@ export async function GET() {
     
     // Get cache configuration info
     const configInfo = getCacheConfigInfo()
+    const cacheConfig = getCacheConfiguration()
     
     return NextResponse.json({
       success: true,
@@ -25,6 +26,11 @@ export async function GET() {
             sizeMB: (value.size / (1024 * 1024)).toFixed(2)
           }
         }), {})
+      },
+      directory: {
+        path: cacheConfig.baseDir,
+        isCustom: cacheConfig.isCustomDir,
+        source: cacheConfig.isCustomDir ? 'CACHE_BASE_DIR environment variable' : 'Default (.cache in project root)'
       },
       configuration: configInfo
     })
