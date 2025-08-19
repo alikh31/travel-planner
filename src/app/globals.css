@@ -98,3 +98,17 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
 }
+
+/* Immersive explore page scroll snap */
+.immersive-scroll-container {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.immersive-place-card {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  height: 100vh;
+  height: 100dvh; /* Use dynamic viewport height for mobile */
+}

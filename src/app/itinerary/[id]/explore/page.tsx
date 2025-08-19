@@ -90,8 +90,9 @@ const ImmersivePlaceCard = memo(({
     <div className={`relative w-full transition-all duration-300 ${
       isNext 
         ? 'h-20 md:h-32 opacity-70 transform scale-95' 
-        : 'h-screen'
-    }`}>
+        : 'h-screen min-h-screen'
+    }`}
+    style={!isNext ? { height: '100vh', minHeight: '100dvh' } : {}}>
       {/* Image Carousel Container */}
       {hasPhotos ? (
         <div className="absolute inset-0 overflow-hidden">
@@ -961,6 +962,8 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     <div 
       className="min-h-screen bg-black overflow-hidden"
       style={{ 
+        height: '100vh',
+        minHeight: '100dvh',
         touchAction: 'none', 
         overscrollBehavior: 'none',
         paddingLeft: 'calc(100vw - 100%)'
@@ -1004,9 +1007,10 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         <div 
           className="immersive-scroll-container h-screen overflow-y-scroll z-10 scrollbar-hide"
           style={{ 
-            scrollBehavior: 'smooth',
+            height: '100vh',
+            minHeight: '100dvh',
             overscrollBehavior: 'none',
-            touchAction: 'none'
+            touchAction: 'pan-y'
           }}
         >
           {allDisplayPlaces.map((place, index) => {
@@ -1017,7 +1021,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
             return (
               <div 
                 key={place.place_id} 
-                className="h-screen flex-shrink-0"
+                className="immersive-place-card flex-shrink-0"
               >
                 {shouldRender ? (
                   <ImmersivePlaceCard 
