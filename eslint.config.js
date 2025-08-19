@@ -6,6 +6,9 @@ const compat = new FlatCompat({
 })
 
 module.exports = [
+  {
+    ignores: ['scripts/**/*', 'node_modules/**/*', '.next/**/*', 'out/**/*', 'build/**/*', 'dist/**/*'],
+  },
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
   {
     rules: {

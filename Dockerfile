@@ -53,6 +53,10 @@ RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
     echo '' >> /app/entrypoint.sh && \
     echo '# Run database migrations' >> /app/entrypoint.sh && \
     echo 'echo "🗄️ Running database setup..."' >> /app/entrypoint.sh && \
+    echo 'if [ -f /app/data/prod.db ]; then' >> /app/entrypoint.sh && \
+    echo '  echo "📊 Existing database found, running migration..."' >> /app/entrypoint.sh && \
+    echo '  node scripts/reset-day-indexes.js || echo "⚠️ Migration failed, continuing..."' >> /app/entrypoint.sh && \
+    echo 'fi' >> /app/entrypoint.sh && \
     echo 'npx prisma db push --accept-data-loss' >> /app/entrypoint.sh && \
     echo '' >> /app/entrypoint.sh && \
     echo '# Build the application' >> /app/entrypoint.sh && \
