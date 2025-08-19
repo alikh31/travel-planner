@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getCached, setCached, generateCacheKey, CACHE_TTLS } from '@/lib/cache-manager'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Allow unauthenticated access for basic location search
 
     const { query, types } = await request.json()
 
@@ -16,20 +13,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 })
     }
 
+    // Generate cache key
+    const cacheKey = generateCacheKey({ query, types })
+    
+    // Check cache first
+    const cached = await getCached(cacheKey, { subfolder: 'searches' })
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+
     const apiKey = process.env.GOOGLE_MAPS_API_KEY
     if (!apiKey) {
       return NextResponse.json({ error: 'Google Maps API key not configured' }, { status: 500 })
     }
 
-    // Build search URL
-    let searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`
+    // Use new Places API Text Search
+    const searchUrl = 'https://places.googleapis.com/v1/places:searchText'
     
-    // Add type filters if provided
-    if (types && types.length > 0) {
-      searchUrl += `&type=${types.join('|')}`
+    const requestBody = {
+      textQuery: query,
+      maxResultCount: 10,
+      // Only request basic fields for autocomplete-style search
+      fieldMask: 'places.id,places.displayName,places.formattedAddress,places.location,places.types'
     }
 
-    const response = await fetch(searchUrl)
+    const response = await fetch(searchUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': requestBody.fieldMask
+      },
+      body: JSON.stringify(requestBody)
+    })
+
     const data = await response.json()
 
     if (!response.ok) {
@@ -37,24 +54,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to search places' }, { status: 500 })
     }
 
-    // Transform the results to include only what we need
-    const transformedResults = data.results?.map((place: any) => ({
-      place_id: place.place_id,
-      name: place.name,
-      rating: place.rating,
-      user_ratings_total: place.user_ratings_total,
-      price_level: place.price_level,
-      vicinity: place.vicinity || place.formatted_address,
-      opening_hours: place.opening_hours,
-      photos: place.photos,
-      geometry: place.geometry,
-      types: place.types
+    // Transform new API results to match legacy format for backward compatibility
+    const transformedResults = data.places?.map((place: any) => ({
+      place_id: place.id,
+      name: place.displayName?.text || '',
+      formatted_address: place.formattedAddress || '',
+      geometry: {
+        location: {
+          lat: place.location?.latitude || 0,
+          lng: place.location?.longitude || 0
+        }
+      },
+      types: place.types || []
     })) || []
 
-    return NextResponse.json({ 
+    const result = { 
       results: transformedResults,
-      status: data.status 
-    })
+      status: 'OK'
+    }
+
+    // Cache the result
+    await setCached(cacheKey, result, { subfolder: 'searches', ttl: CACHE_TTLS.SEARCHES })
+
+    return NextResponse.json(result)
 
   } catch (error) {
     console.error('Error searching places:', error)

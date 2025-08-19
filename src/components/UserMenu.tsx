@@ -11,7 +11,9 @@ import {
   Calendar,
   LogOut,
   ChevronDown,
-  Settings
+  Settings,
+  Compass,
+  Heart
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -119,6 +121,42 @@ export default function UserMenu({ itineraryId }: UserMenuProps) {
                     >
                       <Hotel className={`mr-3 h-4 w-4 ${isCurrentPage ? 'text-ocean-blue-500' : 'text-stone-gray-400'}`} />
                       Accommodation
+                    </Link>
+                  )
+                }}
+              </Menu.Item>
+              <Menu.Item>
+                {({ active }) => {
+                  const isCurrentPage = pathname === `/itinerary/${currentItineraryId}/explore`
+                  return (
+                    <Link
+                      href={`/itinerary/${currentItineraryId}/explore`}
+                      className={`${
+                        active ? 'bg-stone-gray-100' : ''
+                      } ${
+                        isCurrentPage ? 'bg-ocean-blue-50 text-ocean-blue-700' : 'text-stone-gray-700'
+                      } flex items-center px-4 py-2 text-sm`}
+                    >
+                      <Compass className={`mr-3 h-4 w-4 ${isCurrentPage ? 'text-ocean-blue-500' : 'text-stone-gray-400'}`} />
+                      Explore
+                    </Link>
+                  )
+                }}
+              </Menu.Item>
+              <Menu.Item>
+                {({ active }) => {
+                  const isCurrentPage = pathname === `/itinerary/${currentItineraryId}/wishlist`
+                  return (
+                    <Link
+                      href={`/itinerary/${currentItineraryId}/wishlist`}
+                      className={`${
+                        active ? 'bg-stone-gray-100' : ''
+                      } ${
+                        isCurrentPage ? 'bg-ocean-blue-50 text-ocean-blue-700' : 'text-stone-gray-700'
+                      } flex items-center px-4 py-2 text-sm`}
+                    >
+                      <Heart className={`mr-3 h-4 w-4 ${isCurrentPage ? 'text-ocean-blue-500' : 'text-stone-gray-400'}`} />
+                      Wishlist
                     </Link>
                   )
                 }}

@@ -3,10 +3,21 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
+import { 
+  searchText, 
+  searchNearby, 
+  geocodeAddress, 
+  convertLegacyPlace 
+} from '@/lib/google-maps-new'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+// Cost optimization configuration
+const GPT_SUGGESTIONS_COUNT = 10
+const ENABLE_LIMITED_CATEGORIES = false
+const LIMITED_CATEGORIES = ['restaurants', 'attractions', 'cafes', 'bars', 'shopping', 'nature']
 
 export async function POST(request: NextRequest) {
   try {
@@ -92,6 +103,29 @@ export async function POST(request: NextRequest) {
       checkOut: acc.checkOut
     }))
 
+    // Fetch user activity history (last 100 activities)
+    const userActivities = await prisma.userActivity.findMany({
+      where: {
+        userId: session.user.id,
+        itineraryId: itineraryId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 100
+    })
+
+    // Fetch user's wishlist for this itinerary
+    const wishlistItems = await prisma.wishlistItem.findMany({
+      where: {
+        userId: session.user.id,
+        itineraryId: itineraryId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+
     // Build context for GPT
     const tripDuration = Math.ceil(
       (new Date(itinerary.endDate).getTime() - new Date(itinerary.startDate).getTime()) / (1000 * 60 * 60 * 24)
@@ -119,9 +153,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Add wishlist information
+    if (wishlistItems.length > 0) {
+      prompt += `\n\nMy Saved Places (Wishlist):\nI have already saved these places to my wishlist: ${wishlistItems.map(item => item.placeName).join(', ')}. These represent places I'm interested in or plan to visit, so consider similar types of places or complementary experiences.`
+    }
+
+    // Add user activity analysis
+    if (userActivities.length > 0) {
+      // Analyze user behavior patterns
+      const totalActivities = userActivities.length
+      const avgViewTime = userActivities
+        .filter(a => a.totalViewTime)
+        .reduce((sum, a) => sum + (a.totalViewTime || 0), 0) / 
+        userActivities.filter(a => a.totalViewTime).length
+
+      const avgImageSlides = userActivities.reduce((sum, a) => sum + a.imageSlides, 0) / totalActivities
+      const wishlistConversionRate = userActivities.filter(a => a.addedToWishlist).length / totalActivities
+      const mostViewedPlaces = userActivities
+        .filter(a => a.totalViewTime && a.totalViewTime > (avgViewTime || 0))
+        .slice(0, 10)
+        .map(a => a.placeName)
+
+      prompt += `\n\nMy Browsing Behavior Analysis:
+- I have viewed ${totalActivities} places while exploring
+- Average time spent viewing places: ${avgViewTime ? Math.round(avgViewTime / 1000) : 'N/A'} seconds
+- Average images viewed per place: ${Math.round(avgImageSlides)}
+- Wishlist conversion rate: ${Math.round(wishlistConversionRate * 100)}%`
+
+      if (mostViewedPlaces.length > 0) {
+        prompt += `
+- Places I spent the most time viewing: ${mostViewedPlaces.join(', ')}`
+      }
+
+      prompt += `\n\nBased on this behavior, suggest places that align with my demonstrated interests and engagement patterns.`
+    }
+
     prompt += `
 
-Please suggest 15-20 specific places to visit in ${itinerary.destination} including:
+Please suggest exactly ${GPT_SUGGESTIONS_COUNT} specific places to visit in ${itinerary.destination} including:
 - Restaurants and cafes with local cuisine
 - Bars and nightlife venues  
 - Tourist attractions and museums
@@ -129,11 +198,16 @@ Please suggest 15-20 specific places to visit in ${itinerary.destination} includ
 - Parks and nature spots
 - Cultural and historical sites
 - Entertainment venues and experiences
-- Local markets and food halls
-- Viewpoints and observation decks
-- Historic neighborhoods and districts
 
-Focus on highly-rated, popular places that tourists love. Include both must-see landmarks and hidden gems. Return only the place names, one per line, without numbers or bullet points.`
+IMPORTANT PERSONALIZATION INSTRUCTIONS:
+${wishlistItems.length > 0 ? `- Consider that I've shown interest in: ${wishlistItems.map(item => item.placeName).join(', ')}. Suggest similar places or complementary experiences.` : ''}
+${userActivities.length > 0 ? `- Based on my browsing patterns, I tend to ${userActivities.filter(a => a.addedToWishlist).length / userActivities.length > 0.3 ? 'save many places I find interesting' : 'be selective about places I save'}. ${Math.round(userActivities.reduce((sum, a) => sum + a.imageSlides, 0) / userActivities.length) > 2 ? 'I like to explore multiple images of places.' : 'I tend to look at fewer images per place.'}` : ''}
+- Avoid suggesting places I've already added to my wishlist
+- Focus on highly-rated, popular places that align with my demonstrated interests
+- Include both must-see landmarks and hidden gems
+- Prioritize places that complement my planned activities and accommodation locations
+
+Return only the place names, one per line, without numbers or bullet points.`
 
     // Get GPT suggestions
     let gptSuggestions: string[] = []
@@ -143,7 +217,7 @@ Focus on highly-rated, popular places that tourists love. Include both must-see 
         messages: [
           {
             role: 'system',
-            content: 'You are a knowledgeable travel assistant. Provide specific, popular place recommendations for the given destination.'
+            content: 'You are a knowledgeable travel assistant specialized in personalized recommendations. Use the user\'s browsing behavior, wishlist preferences, and planned activities to suggest places they\'re most likely to enjoy. Focus on quality over quantity and consider their demonstrated interests and engagement patterns.'
           },
           {
             role: 'user',
@@ -166,148 +240,114 @@ Focus on highly-rated, popular places that tourists love. Include both must-see 
       // Continue without GPT suggestions if API fails
     }
 
-    // Search for places using Google Places API
-    const googleApiKey = process.env.GOOGLE_MAPS_API_KEY
-    if (!googleApiKey) {
-      console.error('Google Maps API key not found')
+    // Get destination coordinates
+    const destinationCoords = await geocodeAddress(itinerary.destination)
+    
+    if (!destinationCoords) {
+      console.error('Could not geocode destination:', itinerary.destination)
       return NextResponse.json({ 
         suggestions: gptSuggestions,
-        places: [],
-        error: 'Google Maps API key not configured' 
+        places: {},
+        error: 'Could not determine destination location' 
       }, { status: 200 })
     }
 
-    console.log('Starting Google Places search with', gptSuggestions.length, 'suggestions for', itinerary.destination)
-
     const allPlaces: any[] = []
-    const placeTypes = [
+    const placeMetadata = new Map<string, { isGptSuggestion: boolean, gptCategory?: string, searchSource: string }>()
+    
+    // Search for GPT suggestions using Text Search
+    for (let i = 0; i < gptSuggestions.length; i++) {
+      const suggestion = gptSuggestions[i]
+      const places = await searchText(`${suggestion} ${itinerary.destination}`, {
+        maxResults: 1,
+        locationBias: { ...destinationCoords, radius: 50000 },
+        usePreferred: false // Use basic fields for suggestions
+      })
+      
+      if (places.length > 0) {
+        const convertedPlace = convertLegacyPlace(places[0])
+        allPlaces.push(convertedPlace)
+        
+        // Determine category based on suggestion context or place types
+        let category = 'general'
+        if (convertedPlace.types) {
+          if (convertedPlace.types.some((t: string) => ['restaurant', 'food'].includes(t))) {
+            category = 'restaurant'
+          } else if (convertedPlace.types.some((t: string) => ['cafe', 'coffee_shop'].includes(t))) {
+            category = 'cafe'
+          } else if (convertedPlace.types.some((t: string) => ['bar', 'night_club'].includes(t))) {
+            category = 'bar'
+          } else if (convertedPlace.types.some((t: string) => ['tourist_attraction', 'museum'].includes(t))) {
+            category = 'attraction'
+          } else if (convertedPlace.types.some((t: string) => ['shopping_mall', 'store'].includes(t))) {
+            category = 'shopping'
+          } else if (convertedPlace.types.some((t: string) => ['park', 'natural_feature'].includes(t))) {
+            category = 'nature'
+          }
+        }
+        
+        placeMetadata.set(convertedPlace.place_id, {
+          isGptSuggestion: true,
+          gptCategory: category,
+          searchSource: 'gpt'
+        })
+      }
+    }
+    
+    // Category-based searches using Nearby Search (more cost-effective)
+    const nearbySearchTypes = [
       'restaurant',
       'cafe', 
       'bar',
-      'tourist_attraction',
-      'museum',
-      'shopping_mall',
-      'store',
       'park',
-      'church',
-      'amusement_park',
-      'zoo',
-      'aquarium',
-      'art_gallery',
-      'night_club',
-      'movie_theater',
-      'bowling_alley',
-      'spa',
-      'casino'
+      'museum',
+      'shopping_mall'
     ]
-
-    // Additional targeted searches for popular categories
-    const additionalSearches = [
-      `top restaurants in ${itinerary.destination}`,
-      `best cafes in ${itinerary.destination}`,
-      `popular attractions in ${itinerary.destination}`,
-      `shopping districts in ${itinerary.destination}`,
-      `nightlife in ${itinerary.destination}`,
-      `parks and gardens in ${itinerary.destination}`,
-      `museums in ${itinerary.destination}`,
-      `local markets in ${itinerary.destination}`
-    ]
-
-    // Helper function to process places search with concurrency limit
-    const searchPlacesWithConcurrency = async (searchRequests: Array<{url: string, type: string, maxResults: number}>, maxConcurrency = 10) => {
-      const results: any[] = []
+    
+    for (const type of nearbySearchTypes) {
+      const places = await searchNearby(destinationCoords, {
+        radius: 15000,
+        types: [type],
+        maxResults: 12,
+        usePreferred: false // Use basic fields for initial search
+      })
       
-      // Process requests in batches of maxConcurrency
-      for (let i = 0; i < searchRequests.length; i += maxConcurrency) {
-        const batch = searchRequests.slice(i, i + maxConcurrency)
-        console.log(`Processing batch ${Math.floor(i / maxConcurrency) + 1}/${Math.ceil(searchRequests.length / maxConcurrency)} with ${batch.length} requests`)
-        
-        const batchPromises = batch.map(async (request) => {
-          try {
-            console.log(`Fetching: ${request.type}`)
-            const response = await fetch(request.url)
-            const data = await response.json()
-            
-            console.log(`API response for "${request.type}":`, data.status, 'Results:', data.results?.length || 0)
-            
-            if (data.status === 'REQUEST_DENIED') {
-              console.error(`Google Places API request denied for "${request.type}":`, data.error_message)
-              return []
-            }
-            
-            if (data.results && data.results.length > 0) {
-              const places = data.results.slice(0, request.maxResults).map((place: any) => ({
-                place_id: place.place_id,
-                name: place.name,
-                rating: place.rating,
-                user_ratings_total: place.user_ratings_total,
-                price_level: place.price_level,
-                vicinity: place.vicinity || place.formatted_address,
-                opening_hours: place.opening_hours,
-                photos: place.photos,
-                geometry: place.geometry,
-                types: place.types,
-                source: request.type.includes('suggestion') ? 'gpt_suggestion' : 
-                       request.type.includes('category') ? 'category_search' : 'additional_search'
-              }))
-              
-              console.log(`Found ${places.length} places for "${request.type}"`)
-              return places
-            }
-            
-            return []
-          } catch (error) {
-            console.error(`Error in search for "${request.type}":`, error)
-            return []
-          }
-        })
-        
-        const batchResults = await Promise.all(batchPromises)
-        results.push(...batchResults.flat())
-        
-        // Small delay between batches to be respectful to the API
-        if (i + maxConcurrency < searchRequests.length) {
-          await new Promise(resolve => setTimeout(resolve, 100))
+      const convertedPlaces = places.map(place => convertLegacyPlace(place))
+      convertedPlaces.forEach(place => {
+        if (!placeMetadata.has(place.place_id)) {
+          placeMetadata.set(place.place_id, {
+            isGptSuggestion: false,
+            searchSource: 'nearby_search'
+          })
         }
-      }
-      
-      return results
+      })
+      allPlaces.push(...convertedPlaces)
     }
-
-    // Prepare all search requests
-    const allSearchRequests = [
-      // GPT suggestions searches
-      ...gptSuggestions.map(suggestion => ({
-        url: `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(suggestion + ' ' + itinerary.destination)}&key=${googleApiKey}`,
-        type: `suggestion: ${suggestion}`,
-        maxResults: 1
-      })),
-      
-      // Category searches
-      ...placeTypes.map(type => ({
-        url: `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(itinerary.destination)}&type=${type}&key=${googleApiKey}`,
-        type: `category: ${type}`,
-        maxResults: 5
-      })),
-      
-      // Additional targeted searches
-      ...additionalSearches.map(searchQuery => ({
-        url: `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${googleApiKey}`,
-        type: `additional: ${searchQuery}`,
-        maxResults: 3
-      }))
+    
+    // Additional text searches for specific categories
+    const textSearchQueries = [
+      `tourist attractions in ${itinerary.destination}`,
+      `nightlife in ${itinerary.destination}`
     ]
-
-    console.log(`Starting parallel search for ${allSearchRequests.length} requests with max concurrency of 10`)
-    const startTime = Date.now()
     
-    // Execute all searches with concurrency control
-    allPlaces.push(...await searchPlacesWithConcurrency(allSearchRequests, 10))
-    
-    const endTime = Date.now()
-    console.log(`Completed all searches in ${endTime - startTime}ms`)
-
-    console.log('Total places found before deduplication:', allPlaces.length)
+    for (const query of textSearchQueries) {
+      const places = await searchText(query, {
+        maxResults: 8,
+        locationBias: { ...destinationCoords, radius: 50000 },
+        usePreferred: false
+      })
+      
+      const convertedPlaces = places.map(place => convertLegacyPlace(place))
+      convertedPlaces.forEach(place => {
+        if (!placeMetadata.has(place.place_id)) {
+          placeMetadata.set(place.place_id, {
+            isGptSuggestion: false,
+            searchSource: 'text_search'
+          })
+        }
+      })
+      allPlaces.push(...convertedPlaces)
+    }
     
     // Remove duplicates based on place_id
     const uniquePlaces = allPlaces.reduce((acc: any[], place) => {
@@ -317,10 +357,8 @@ Focus on highly-rated, popular places that tourists love. Include both must-see 
       return acc
     }, [])
 
-    console.log('Unique places after deduplication:', uniquePlaces.length)
-
     // Categorize places
-    const categorizedPlaces = {
+    const allCategoryMappings = {
       restaurants: uniquePlaces.filter((place: any) => 
         place.types?.some((type: string) => ['restaurant', 'food', 'meal_takeaway'].includes(type))
       ),
@@ -352,10 +390,29 @@ Focus on highly-rated, popular places that tourists love. Include both must-see 
         place.types?.some((type: string) => ['church', 'hindu_temple', 'mosque', 'synagogue', 'city_hall', 'monument'].includes(type))
       ),
     }
+    
+    // Filter categories based on configuration
+    const categorizedPlaces: any = {}
+    if (ENABLE_LIMITED_CATEGORIES) {
+      LIMITED_CATEGORIES.forEach(categoryId => {
+        if (allCategoryMappings[categoryId as keyof typeof allCategoryMappings]) {
+          categorizedPlaces[categoryId] = allCategoryMappings[categoryId as keyof typeof allCategoryMappings]
+        }
+      })
+    } else {
+      Object.assign(categorizedPlaces, allCategoryMappings)
+    }
+
+    // Convert metadata Map to plain object for response
+    const metadataObject: { [key: string]: any } = {}
+    placeMetadata.forEach((value, key) => {
+      metadataObject[key] = value
+    })
 
     return NextResponse.json({
       suggestions: gptSuggestions,
       places: categorizedPlaces,
+      placeMetadata: metadataObject,
       itinerary: {
         id: itinerary.id,
         title: itinerary.title,

@@ -1,36 +1,305 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, useCallback, useMemo, memo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { useActivityTracking } from '@/hooks/useActivityTracking'
 import { 
   MapPin, 
-  Utensils, 
-  Coffee, 
-  Beer, 
   Camera,
-  ShoppingBag,
-  TreePine,
-  Landmark,
   Sparkles,
   Loader2,
   Star,
   DollarSign,
   RefreshCw,
-  Gamepad2,
-  Waves,
-  Palette,
-  Film,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  ChevronDown,
   Heart,
-  Share,
   ExternalLink,
   Clock
 } from 'lucide-react'
 import TripHeader from '@/components/TripHeader'
+
+// Move ImmersivePlaceCard completely outside to preserve animations
+const ImmersivePlaceCard = memo(({ 
+  place, 
+  isNext = false, 
+  placeIndex,
+  currentPlaceIndex,
+  currentImageIndex,
+  isImageScrolling,
+  enhancedPlaces,
+  loadingEnhancedPlace,
+  placeImageIndexes,
+  onNavigateToImage,
+  wishlistItems,
+  onToggleWishlist
+}: { 
+  place: any
+  isNext?: boolean
+  placeIndex?: number
+  currentPlaceIndex: number
+  currentImageIndex: number
+  isImageScrolling: boolean
+  enhancedPlaces: Map<string, any>
+  loadingEnhancedPlace: string | null
+  placeImageIndexes: Map<string, number>
+  onNavigateToImage: (index: number) => void
+  wishlistItems: Set<string>
+  onToggleWishlist: (place: any) => void
+}) => {
+  // Get enhanced place data
+  const enhanced = enhancedPlaces.get(place.place_id)
+  const enhancedPlace = enhanced ? {
+    ...place,
+    photos: enhanced.photos && enhanced.photos.length > 0 ? enhanced.photos : place.photos,
+    editorial_summary: enhanced.editorial_summary,
+    reviews: enhanced.reviews
+  } : place
+
+  const photos = enhancedPlace.photos || []
+  const hasPhotos = photos.length > 0
+  const isCurrentPlace = placeIndex === currentPlaceIndex
+  const isLoading = loadingEnhancedPlace === place.place_id
+  
+  // Get the stored image index for this place, or use current if it's the current place
+  const placeSpecificImageIndex = isCurrentPlace 
+    ? currentImageIndex 
+    : (placeImageIndexes.get(place.place_id) || 0)
+
+  const isInWishlist = wishlistItems.has(place.place_id)
+
+  const handleDoubleClick = () => {
+    onToggleWishlist(enhancedPlace)
+  }
+
+  const renderPriceLevel = (level?: number) => {
+    if (!level) return null
+    return (
+      <div className="flex items-center gap-0.5">
+        {[...Array(4)].map((_, i) => (
+          <DollarSign 
+            key={i}
+            className={`h-3 w-3 ${i < level ? 'text-green-600' : 'text-gray-300'}`}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`relative w-full transition-all duration-300 ${
+      isNext 
+        ? 'h-20 md:h-32 opacity-70 transform scale-95' 
+        : 'h-screen'
+    }`}>
+      {/* Image Carousel Container */}
+      {hasPhotos ? (
+        <div className="absolute inset-0 overflow-hidden">
+          {/* Direct inline carousel for animation stability */}
+          <div 
+            className="flex h-full transition-transform duration-[350ms] ease-out"
+            style={{
+              width: `${photos.length * 100}%`,
+              transform: `translateX(-${placeSpecificImageIndex * (100 / photos.length)}%)`,
+              pointerEvents: isImageScrolling && isCurrentPlace ? 'none' : 'auto'
+            }}
+            onDoubleClick={handleDoubleClick}
+          >
+            {photos.map((photo, index) => {
+              // Generate stable image key
+              const imageKey = `${enhancedPlace.place_id}-${index}`
+              
+              // Determine photo reference
+              const photoReference = photo.name || photo.photo_reference
+              const isNewAPIPhotoName = photoReference?.startsWith('places/') && photoReference?.includes('/photos/')
+              
+              // Use backend API for images
+              const imageUrl = photoReference 
+                ? `/api/images?name=${encodeURIComponent(photoReference)}&maxWidth=1600${isNewAPIPhotoName ? '' : '&legacy=true'}`
+                : null
+              
+              return (
+                <div
+                  key={imageKey}
+                  className="w-full h-full flex-shrink-0"
+                  style={{ width: `${100 / photos.length}%` }}
+                >
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt={`${enhancedPlace.name} - Image ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      loading={index === placeSpecificImageIndex ? "eager" : "lazy"}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-sunset-coral-500 to-sunset-coral-700 flex items-center justify-center">
+                      <Camera className="h-20 w-20 text-white opacity-50" />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-sunset-coral-500 to-sunset-coral-700" onDoubleClick={handleDoubleClick}>
+          <div className="flex items-center justify-center h-full">
+            <Camera className="h-20 w-20 text-white opacity-50" />
+          </div>
+        </div>
+      )}
+
+      {!isNext && (
+        <>
+          {/* Image Navigation Dots */}
+          {photos.length > 1 && isCurrentPlace && (
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-20">
+              {photos.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onNavigateToImage(index)
+                  }}
+                  className={`w-3 h-3 rounded-full transition-all cursor-pointer shadow-md ${
+                    index === placeSpecificImageIndex 
+                      ? 'bg-white border border-white scale-110' 
+                      : 'bg-gray-400 bg-opacity-60 border border-gray-300 hover:bg-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Image Navigation Arrows */}
+          {photos.length > 1 && isCurrentPlace && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigateToImage(currentImageIndex - 1)
+                }}
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-opacity z-10"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onNavigateToImage(currentImageIndex + 1)
+                }}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-opacity z-10"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
+
+          {/* Content Overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-6 text-white z-10" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
+            <div className="max-w-2xl">
+              <h2 className="text-2xl md:text-3xl font-bold mb-3" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.9)' }}>{enhancedPlace.name}</h2>
+              
+              <div className="flex items-center gap-4 mb-3">
+                {enhancedPlace.rating && (
+                  <div className="flex items-center gap-1">
+                    <Star className="h-5 w-5 text-yellow-400 fill-current" />
+                    <span className="font-medium">{enhancedPlace.rating}</span>
+                    {enhancedPlace.user_ratings_total && (
+                      <span className="opacity-75">({enhancedPlace.user_ratings_total})</span>
+                    )}
+                  </div>
+                )}
+                {renderPriceLevel(enhancedPlace.price_level)}
+                {enhancedPlace.opening_hours && (
+                  <div className={`px-2 py-1 rounded text-sm font-medium ${
+                    enhancedPlace.opening_hours.open_now 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-red-500 text-white'
+                  }`}>
+                    <Clock className="h-3 w-3 inline mr-1" />
+                    {enhancedPlace.opening_hours.open_now ? 'Open' : 'Closed'}
+                  </div>
+                )}
+                {isLoading && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-black bg-opacity-40 rounded text-xs">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Loading details...
+                  </div>
+                )}
+              </div>
+
+              {enhancedPlace.vicinity && (
+                <div className="flex items-start gap-2 mb-4 opacity-90">
+                  <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm">{enhancedPlace.vicinity}</span>
+                </div>
+              )}
+
+              {/* Place Summary */}
+              {enhancedPlace.editorial_summary && (
+                <div className="mb-4 opacity-90">
+                  <p className="text-sm leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+                    {enhancedPlace.editorial_summary}
+                  </p>
+                </div>
+              )}
+
+              {/* Top Review */}
+              {enhancedPlace.reviews && enhancedPlace.reviews.length > 0 && (
+                <div className="opacity-85">
+                  <p className="text-xs italic leading-relaxed" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+                    "{enhancedPlace.reviews[0].text.length > 120 
+                      ? enhancedPlace.reviews[0].text.substring(0, 120) + '...' 
+                      : enhancedPlace.reviews[0].text}"
+                  </p>
+                  <p className="text-xs mt-1 opacity-75">
+                    — {enhancedPlace.reviews[0].author_name}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="absolute right-4 bottom-20 flex flex-col gap-4 z-10">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleWishlist(enhancedPlace)
+              }}
+              className={`p-3 rounded-full transition-all border border-white border-opacity-20 ${
+                isInWishlist 
+                  ? 'bg-red-500 text-white hover:bg-red-600' 
+                  : 'bg-black bg-opacity-40 backdrop-blur-sm text-white hover:bg-opacity-60'
+              }`}
+              title={isInWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+            >
+              <Heart className={`h-6 w-6 ${isInWishlist ? 'fill-current' : 'stroke-current'}`} />
+            </button>
+            <button 
+              onClick={() => {
+                // Open Google Maps with the place
+                const googleMapsUrl = `https://www.google.com/maps/place/?q=place_id:${enhancedPlace.place_id}`
+                window.open(googleMapsUrl, '_blank', 'noopener,noreferrer')
+              }}
+              className="bg-black bg-opacity-40 backdrop-blur-sm text-white p-3 rounded-full hover:bg-opacity-60 transition-all border border-white border-opacity-20"
+              title="Open in Google Maps"
+            >
+              <ExternalLink className="h-6 w-6 stroke-current" />
+            </button>
+          </div>
+
+        </>
+      )}
+    </div>
+  )
+})
+
+ImmersivePlaceCard.displayName = 'ImmersivePlaceCard'
+
+
 
 interface Place {
   place_id: string
@@ -53,116 +322,48 @@ interface Place {
   }
   types?: string[]
   distance?: number
+  editorial_summary?: string
+  reviews?: Array<{
+    text: string
+    rating: number
+    author_name: string
+  }>
 }
 
-interface ExploreCategory {
-  id: string
-  name: string
-  icon: any
-  types: string[]
-  places: Place[]
-  loading: boolean
-}
 
 export default function ExplorePage({ params }: { params: Promise<{ id: string }> }) {
   const { data: session, status } = useSession()
   const router = useRouter()
   const resolvedParams = use(params)
   
+  
+  
   const [itinerary, setItinerary] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [gptSuggestions, setGptSuggestions] = useState<string[]>([])
   const [loadingExplore, setLoadingExplore] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
-  const [showAllPlaces, setShowAllPlaces] = useState(false)
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState(0)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [viewMode, setViewMode] = useState<'grid' | 'tiktok'>('tiktok')
-  const [isSwipeMode, setIsSwipeMode] = useState(false)
+  const [placeImageIndexes, setPlaceImageIndexes] = useState<Map<string, number>>(new Map())
+  const [isScrolling, setIsScrolling] = useState(false)
+  const [isImageScrolling, setIsImageScrolling] = useState(false)
+  const [enhancedPlaces, setEnhancedPlaces] = useState<Map<string, any>>(new Map())
+  const [loadingEnhancedPlace, setLoadingEnhancedPlace] = useState<string | null>(null)
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
+  const [imageUrlCache] = useState<Map<string, string>>(new Map())
+  const [wishlistItems, setWishlistItems] = useState<Set<string>>(new Set())
+  const [sessionId] = useState(() => `explore_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
+  const [placeMetadata, setPlaceMetadata] = useState<Map<string, any>>(new Map())
   
-  const [categories, setCategories] = useState<ExploreCategory[]>([
-    {
-      id: 'restaurants',
-      name: 'Restaurants',
-      icon: Utensils,
-      types: ['restaurant', 'food', 'meal_takeaway'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'cafes',
-      name: 'Cafes',
-      icon: Coffee,
-      types: ['cafe', 'coffee_shop', 'bakery'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'bars',
-      name: 'Bars & Nightlife',
-      icon: Beer,
-      types: ['bar', 'night_club', 'pub'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'attractions',
-      name: 'Attractions',
-      icon: Camera,
-      types: ['tourist_attraction', 'museum', 'amusement_park', 'zoo', 'aquarium'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'arts',
-      name: 'Arts & Culture',
-      icon: Palette,
-      types: ['art_gallery', 'library', 'theater'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'entertainment',
-      name: 'Entertainment',
-      icon: Film,
-      types: ['movie_theater', 'bowling_alley', 'casino'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'wellness',
-      name: 'Health & Wellness',
-      icon: Waves,
-      types: ['spa', 'gym', 'beauty_salon'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'shopping',
-      name: 'Shopping',
-      icon: ShoppingBag,
-      types: ['shopping_mall', 'store', 'market', 'clothing_store'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'nature',
-      name: 'Nature & Parks',
-      icon: TreePine,
-      types: ['park', 'natural_feature', 'hiking_area', 'campground'],
-      places: [],
-      loading: false
-    },
-    {
-      id: 'culture',
-      name: 'Religious & Historic',
-      icon: Landmark,
-      types: ['church', 'hindu_temple', 'mosque', 'synagogue', 'city_hall', 'monument'],
-      places: [],
-      loading: false
-    }
-  ])
+  const [categories, setCategories] = useState<any[]>([])
+
+  // Initialize activity tracking
+  const { startPlaceView, endPlaceView, trackImageSlide, trackWishlistAdd } = useActivityTracking({
+    itineraryId: resolvedParams.id,
+    sessionId,
+    dayId: selectedDay || undefined
+  })
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -172,13 +373,187 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     fetchItinerary()
+    fetchWishlist()
   }, [resolvedParams.id])
+
+  const getAllPlaces = useCallback(() => {
+    const allPlaces = new Map<string, Place>()
+    categories.forEach((cat: any) => {
+      if (cat.places) {
+        cat.places.forEach((place: Place) => {
+          allPlaces.set(place.place_id, place)
+        })
+      }
+    })
+    return Array.from(allPlaces.values())
+  }, [categories])
+  
+  // Get all places for immersive view
+  const allDisplayPlaces = useMemo(() => {
+    return getAllPlaces()
+  }, [getAllPlaces])
+
+  // Fetch enhanced details for a specific place on-demand
+  const fetchEnhancedDetails = useCallback(async (placeId: string) => {
+    // Skip if already enhanced or currently loading
+    if (enhancedPlaces.has(placeId) || loadingEnhancedPlace === placeId) {
+      return
+    }
+
+    setLoadingEnhancedPlace(placeId)
+    
+    try {
+      const response = await fetch('/api/place-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ placeId })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.data) {
+          setEnhancedPlaces(prev => new Map(prev).set(placeId, result.data))
+        }
+      } else {
+        console.error('Failed to fetch enhanced details for place:', placeId)
+      }
+    } catch (error) {
+      console.error('Error fetching enhanced details:', error)
+    } finally {
+      setLoadingEnhancedPlace(null)
+    }
+  }, [enhancedPlaces, loadingEnhancedPlace])
+
+  // Enhanced place data retrieval
+  const getEnhancedPlace = useCallback((place: Place) => {
+    const enhanced = enhancedPlaces.get(place.place_id)
+    if (enhanced) {
+      return {
+        ...place,
+        photos: enhanced.photos && enhanced.photos.length > 0 ? enhanced.photos : place.photos,
+        editorial_summary: enhanced.editorial_summary,
+        reviews: enhanced.reviews
+      }
+    }
+    return place
+  }, [enhancedPlaces])
+
+  // Fetch enhanced details when place changes
+  useEffect(() => {
+    if (allDisplayPlaces.length > 0) {
+      const currentPlace = allDisplayPlaces[currentPlaceIndex]
+      if (currentPlace) {
+        fetchEnhancedDetails(currentPlace.place_id)
+        
+        // Pre-fetch next place for smoother experience
+        const nextPlace = allDisplayPlaces[currentPlaceIndex + 1]
+        if (nextPlace) {
+          setTimeout(() => fetchEnhancedDetails(nextPlace.place_id), 1000)
+        }
+      }
+    }
+  }, [currentPlaceIndex, allDisplayPlaces, fetchEnhancedDetails])
+
+  const navigateToPlace = useCallback((newIndex: number) => {
+    if (allDisplayPlaces.length === 0 || isScrolling) return
+    
+    // Handle bounds
+    let targetIndex = newIndex
+    if (newIndex < 0) {
+      targetIndex = 0
+    } else if (newIndex >= allDisplayPlaces.length) {
+      targetIndex = allDisplayPlaces.length - 1
+    }
+    
+    // Don't navigate if already at target
+    if (targetIndex === currentPlaceIndex) return
+    
+    setIsScrolling(true)
+    
+    // Scroll to the target place with smooth animation
+    const scrollContainer = document.querySelector('.immersive-scroll-container')
+    if (scrollContainer) {
+      const targetScrollTop = targetIndex * window.innerHeight
+      scrollContainer.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth'
+      })
+      
+      // Wait for scroll animation to complete
+      setTimeout(() => {
+        setCurrentPlaceIndex(targetIndex)
+        
+        // Sync currentImageIndex with the stored index for the new place
+        const newPlace = allDisplayPlaces[targetIndex]
+        if (newPlace) {
+          const storedIndex = placeImageIndexes.get(newPlace.place_id) || 0
+          setCurrentImageIndex(storedIndex)
+          
+          // Start tracking new place view
+          startPlaceView(newPlace.place_id, newPlace.name, targetIndex)
+        } else {
+          setCurrentImageIndex(0)
+        }
+        
+        setIsScrolling(false)
+      }, 560) // 30% faster than 800ms (800 * 0.7 = 560ms)
+    } else {
+      setCurrentPlaceIndex(targetIndex)
+      
+      // Sync currentImageIndex with the stored index for the new place
+      const newPlace = allDisplayPlaces[targetIndex]
+      if (newPlace) {
+        const storedIndex = placeImageIndexes.get(newPlace.place_id) || 0
+        setCurrentImageIndex(storedIndex)
+        
+        // Start tracking new place view with metadata
+        const metadata = placeMetadata.get(newPlace.place_id)
+        startPlaceView(newPlace.place_id, newPlace.name, targetIndex, metadata)
+      } else {
+        setCurrentImageIndex(0)
+      }
+      
+      setIsScrolling(false)
+    }
+  }, [allDisplayPlaces, currentPlaceIndex, isScrolling, placeImageIndexes, startPlaceView])
+
+  const navigateToImage = useCallback((newIndex: number) => {
+    const currentPlace = allDisplayPlaces[currentPlaceIndex]
+    if (!currentPlace?.photos || currentPlace.photos.length === 0 || isImageScrolling) return
+    
+    // Handle wraparound navigation
+    let targetIndex = newIndex
+    if (newIndex < 0) {
+      targetIndex = currentPlace.photos.length - 1
+    } else if (newIndex >= currentPlace.photos.length) {
+      targetIndex = 0
+    }
+    
+    // Don't navigate if already at target
+    if (targetIndex === currentImageIndex) return
+    
+    setIsImageScrolling(true)
+    
+    // Update state
+    setCurrentImageIndex(targetIndex)
+    setPlaceImageIndexes(prev => {
+      const newMap = new Map(prev)
+      newMap.set(currentPlace.place_id, targetIndex)
+      return newMap
+    })
+    
+    // Track image slide
+    trackImageSlide()
+    
+    // Clear animation lock after a short delay
+    setTimeout(() => {
+      setIsImageScrolling(false)
+    }, 350) // Match new CSS animation duration (30% faster)
+  }, [allDisplayPlaces, currentPlaceIndex, currentImageIndex, isImageScrolling, trackImageSlide])
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (viewMode !== 'tiktok') return
-      
       switch (e.key) {
         case 'ArrowUp':
           e.preventDefault()
@@ -201,69 +576,161 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [viewMode, currentPlaceIndex, currentImageIndex])
+  }, [currentPlaceIndex, currentImageIndex, navigateToPlace, navigateToImage])
 
-  // Touch/swipe handling
+  // Custom scroll management - one place at a time with smooth animation
+  
+  // Disable browser gestures globally
   useEffect(() => {
-    let startY = 0
-    let startX = 0
-    let currentY = 0
-    let currentX = 0
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (viewMode !== 'tiktok') return
-      startY = e.touches[0].clientY
-      startX = e.touches[0].clientX
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (viewMode !== 'tiktok') return
-      currentY = e.touches[0].clientY
-      currentX = e.touches[0].clientX
-    }
-
-    const handleTouchEnd = () => {
-      if (viewMode !== 'tiktok') return
+      // Apply the most effective solution from Flutter issue #152588
+      // This completely disables horizontal overscroll behavior
+      const originalStyles = {
+        htmlOverscrollBehaviorX: document.documentElement.style.overscrollBehaviorX,
+        bodyOverscrollBehaviorX: document.body.style.overscrollBehaviorX,
+        htmlTouchAction: document.documentElement.style.touchAction,
+        bodyTouchAction: document.body.style.touchAction,
+      }
       
-      const diffY = startY - currentY
-      const diffX = startX - currentX
+      // Set CSS properties as recommended in the Flutter issue
+      document.documentElement.style.overscrollBehaviorX = 'none'
+      document.body.style.overscrollBehaviorX = 'none'
+      document.documentElement.style.touchAction = 'pan-y pinch-zoom'
+      document.body.style.touchAction = 'pan-y pinch-zoom'
       
-      // Determine if it's a vertical or horizontal swipe
-      if (Math.abs(diffY) > Math.abs(diffX)) {
-        // Vertical swipe
-        if (Math.abs(diffY) > 50) {
-          if (diffY > 0) {
-            // Swipe up - next place
-            navigateToPlace(currentPlaceIndex + 1)
-          } else {
-            // Swipe down - previous place
-            navigateToPlace(currentPlaceIndex - 1)
-          }
-        }
-      } else {
-        // Horizontal swipe
-        if (Math.abs(diffX) > 50) {
-          if (diffX > 0) {
-            // Swipe left - next image
-            navigateToImage(currentImageIndex + 1)
-          } else {
-            // Swipe right - previous image
-            navigateToImage(currentImageIndex - 1)
+      // Prevent keyboard navigation
+      const preventKeyNavigation = (e: KeyboardEvent) => {
+        if (
+          e.key === 'Backspace' || 
+          (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) ||
+          (e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight'))
+        ) {
+          const target = e.target as HTMLElement
+          if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+            e.preventDefault()
+            e.stopPropagation()
           }
         }
       }
+      
+      document.addEventListener('keydown', preventKeyNavigation, { capture: true })
+      
+      return () => {
+        // Restore original styles
+        document.documentElement.style.overscrollBehaviorX = originalStyles.htmlOverscrollBehaviorX
+        document.body.style.overscrollBehaviorX = originalStyles.bodyOverscrollBehaviorX
+        document.documentElement.style.touchAction = originalStyles.htmlTouchAction
+        document.body.style.touchAction = originalStyles.bodyTouchAction
+        
+        document.removeEventListener('keydown', preventKeyNavigation, { capture: true })
+      }
+  }, [])
+  
+  useEffect(() => {
+    const scrollContainer = document.querySelector('.immersive-scroll-container') as HTMLElement
+    if (!scrollContainer) return
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      
+      // Prevent scrolling during animation
+      if (isScrolling || isImageScrolling) return
+      
+      // Check if this is a horizontal scroll (for image navigation)
+      const isHorizontalScroll = Math.abs(e.deltaX) > Math.abs(e.deltaY)
+      
+      if (isHorizontalScroll) {
+        // Handle horizontal scroll for image navigation
+        if (Math.abs(e.deltaX) < 50) return
+        
+        const direction = e.deltaX > 0 ? 1 : -1
+        const targetImageIndex = currentImageIndex + direction
+        
+        navigateToImage(targetImageIndex)
+      } else {
+        // Handle vertical scroll for place navigation
+        if (Math.abs(e.deltaY) < 50) return
+        
+        const direction = e.deltaY > 0 ? 1 : -1
+        const targetIndex = currentPlaceIndex + direction
+        
+        // Check bounds
+        if (targetIndex < 0 || targetIndex >= allDisplayPlaces.length) return
+        
+        // Navigate to the target place
+        navigateToPlace(targetIndex)
+      }
     }
 
-    window.addEventListener('touchstart', handleTouchStart, { passive: true })
-    window.addEventListener('touchmove', handleTouchMove, { passive: true })
-    window.addEventListener('touchend', handleTouchEnd, { passive: true })
+    // Add horizontal scroll event handling for image containers
+    const handleImageScroll = (e: WheelEvent) => {
+      const target = e.target as HTMLElement
+      const imageContainer = target.closest('.image-scroll-container')
+      
+      if (imageContainer && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        // Let the horizontal scroll happen naturally for image navigation
+        // The scrollTo in navigateToImage will handle smooth scrolling
+        return
+      }
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (isScrolling || isImageScrolling) return
+      const touch = e.touches[0]
+      scrollContainer.dataset.touchStartX = touch.clientX.toString()
+      scrollContainer.dataset.touchStartY = touch.clientY.toString()
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      // Let the global handler prevent default, we just need to track movement
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (isScrolling || isImageScrolling) return
+      
+      const touch = e.changedTouches[0]
+      const startX = parseFloat(scrollContainer.dataset.touchStartX || '0')
+      const startY = parseFloat(scrollContainer.dataset.touchStartY || '0')
+      const deltaX = touch.clientX - startX
+      const deltaY = touch.clientY - startY
+      
+      // Determine if this is primarily horizontal or vertical movement
+      const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY)
+      
+      if (isHorizontalSwipe) {
+        // Handle horizontal swipe for image navigation
+        if (Math.abs(deltaX) < 50) return // Reduced threshold for more responsive
+        
+        const direction = deltaX < 0 ? 1 : -1 // Swipe left = next image
+        const targetImageIndex = currentImageIndex + direction
+        
+        navigateToImage(targetImageIndex)
+      } else {
+        // Handle vertical swipe for place navigation
+        if (Math.abs(deltaY) < 100) return
+        
+        const direction = deltaY < 0 ? 1 : -1
+        const targetIndex = currentPlaceIndex + direction
+        
+        // Check bounds
+        if (targetIndex < 0 || targetIndex >= allDisplayPlaces.length) return
+        
+        navigateToPlace(targetIndex)
+      }
+    }
+
+    scrollContainer.addEventListener('wheel', handleWheel, { passive: false })
+    scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: false })
+    scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: false })
+    scrollContainer.addEventListener('touchend', handleTouchEnd, { passive: false })
 
     return () => {
-      window.removeEventListener('touchstart', handleTouchStart)
-      window.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('touchend', handleTouchEnd)
+      scrollContainer.removeEventListener('wheel', handleWheel)
+      scrollContainer.removeEventListener('touchstart', handleTouchStart)
+      scrollContainer.removeEventListener('touchmove', handleTouchMove)
+      scrollContainer.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [viewMode, currentPlaceIndex, currentImageIndex])
+  }, [currentPlaceIndex, currentImageIndex, allDisplayPlaces.length, isScrolling, isImageScrolling, navigateToPlace, navigateToImage])
+
 
   const fetchItinerary = async () => {
     try {
@@ -287,12 +754,68 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     }
   }
 
+  const fetchWishlist = async () => {
+    try {
+      const response = await fetch(`/api/wishlist?itineraryId=${resolvedParams.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        const placeIds = new Set(data.items.map((item: any) => item.placeId))
+        setWishlistItems(placeIds)
+      }
+    } catch (error) {
+      console.error('Error fetching wishlist:', error)
+    }
+  }
+
+  const toggleWishlist = async (place: Place) => {
+    const isInWishlist = wishlistItems.has(place.place_id)
+    
+    try {
+      if (isInWishlist) {
+        // Remove from wishlist
+        const response = await fetch(`/api/wishlist?placeId=${place.place_id}&itineraryId=${resolvedParams.id}`, {
+          method: 'DELETE'
+        })
+        
+        if (response.ok) {
+          setWishlistItems(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(place.place_id)
+            return newSet
+          })
+        }
+      } else {
+        // Add to wishlist
+        const response = await fetch('/api/wishlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            placeId: place.place_id,
+            placeName: place.name,
+            placeVicinity: place.vicinity,
+            placeRating: place.rating,
+            placePhotoReference: place.photos?.[0]?.photo_reference || place.photos?.[0]?.name,
+            itineraryId: resolvedParams.id
+          })
+        })
+        
+        if (response.ok) {
+          setWishlistItems(prev => new Set(prev).add(place.place_id))
+          // Track wishlist addition
+          trackWishlistAdd(place.place_id)
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling wishlist:', error)
+    }
+  }
+
   const explorePlaces = async (itineraryId: string, dayId?: string) => {
     setLoadingExplore(true)
     setGptSuggestions([])
     
     // Reset categories
-    setCategories(prev => prev.map(cat => ({ ...cat, places: [] })))
+    setCategories([])
     
     try {
       const response = await fetch('/api/explore', {
@@ -310,11 +833,44 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         // Set GPT suggestions
         setGptSuggestions(data.suggestions || [])
         
-        // Update categories with places
-        setCategories(prev => prev.map(cat => ({
-          ...cat,
-          places: data.places?.[cat.id] || []
-        })))
+        // Store place metadata
+        if (data.placeMetadata) {
+          const metadataMap = new Map<string, any>()
+          Object.keys(data.placeMetadata).forEach(placeId => {
+            metadataMap.set(placeId, data.placeMetadata[placeId])
+          })
+          setPlaceMetadata(metadataMap)
+        }
+        
+        // Update categories with places - convert to simple format for immersive view
+        const newCategories: any[] = []
+        if (data.places) {
+          Object.keys(data.places).forEach(categoryId => {
+            newCategories.push({
+              id: categoryId,
+              places: data.places[categoryId] || []
+            })
+          })
+        }
+        setCategories(newCategories)
+        
+        // Reset place index when new places are loaded
+        setCurrentPlaceIndex(0)
+        setCurrentImageIndex(0)
+        
+        // Clear enhanced places cache when new places are loaded
+        setEnhancedPlaces(new Map())
+        
+        // Start tracking first place if available
+        const firstPlace = newCategories.length > 0 && newCategories[0].places && newCategories[0].places.length > 0
+          ? newCategories[0].places[0]
+          : null
+        if (firstPlace) {
+          const metadata = data.placeMetadata?.[firstPlace.place_id]
+          setTimeout(() => {
+            startPlaceView(firstPlace.place_id, firstPlace.name, 0, metadata)
+          }, 100) // Small delay to ensure state is updated
+        }
         
       } else {
         console.error('Failed to explore places')
@@ -335,42 +891,38 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     explorePlaces(resolvedParams.id, selectedDay || undefined)
   }
 
-  const navigateToPlace = (newIndex: number) => {
-    const allPlaces = getAllPlaces()
-    if (newIndex >= 0 && newIndex < allPlaces.length) {
-      setCurrentPlaceIndex(newIndex)
-      setCurrentImageIndex(0) // Reset image index when changing place
+  const getPhotoUrl = useCallback((photoReference?: string) => {
+    if (!photoReference) {
+      console.log('No photo reference provided')
+      return null
     }
-  }
-
-  const navigateToImage = (newIndex: number) => {
-    const allPlaces = getAllPlaces()
-    const currentPlace = allPlaces[currentPlaceIndex]
-    if (!currentPlace?.photos) return
     
-    const maxIndex = currentPlace.photos.length - 1
-    if (newIndex >= 0 && newIndex <= maxIndex) {
-      setCurrentImageIndex(newIndex)
+    // Check cache first
+    if (imageUrlCache.has(photoReference)) {
+      return imageUrlCache.get(photoReference)
     }
-  }
+    
+    // Determine if this is a new Places API photo name or legacy photo reference
+    const isNewAPIPhotoName = photoReference.startsWith('places/') && photoReference.includes('/photos/')
+    
+    // Use backend API for images - it handles caching and both legacy/new formats
+    const url = `/api/images?name=${encodeURIComponent(photoReference)}&maxWidth=1600${isNewAPIPhotoName ? '' : '&legacy=true'}`
+    
+    // Cache the URL
+    imageUrlCache.set(photoReference, url)
+    
+    return url
+  }, [imageUrlCache])
 
+  const handleImageLoad = useCallback((imageKey: string) => {
+    setLoadedImages(prev => new Set(prev).add(imageKey))
+  }, [])
 
-  const getAllPlaces = () => {
-    const allPlaces = new Map<string, Place>()
-    categories.forEach(cat => {
-      cat.places.forEach(place => {
-        allPlaces.set(place.place_id, place)
-      })
-    })
-    return Array.from(allPlaces.values())
-  }
+  const isImageLoaded = useCallback((imageKey: string) => {
+    return loadedImages.has(imageKey)
+  }, [loadedImages])
 
-  const getPhotoUrl = (photoReference?: string) => {
-    if (!photoReference) return null
-    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
-  }
-
-  const renderPriceLevel = (level?: number) => {
+  const renderPriceLevel = useCallback((level?: number) => {
     if (!level) return null
     return (
       <div className="flex items-center gap-0.5">
@@ -382,182 +934,9 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         ))}
       </div>
     )
-  }
+  }, [])
 
-  const TikTokPlaceCard = ({ place, isNext = false }: { place: Place, isNext?: boolean }) => {
-    const photos = place.photos || []
-    const hasPhotos = photos.length > 0
-    const currentPhoto = photos[currentImageIndex] || photos[0]
-    
-    return (
-      <div className={`relative w-full transition-all duration-300 ${
-        isNext 
-          ? 'h-20 md:h-32 opacity-70 transform scale-95' 
-          : 'h-screen md:h-[calc(100vh-120px)]'
-      }`}>
-        {/* Background Image */}
-        {hasPhotos && currentPhoto ? (
-          <div className="absolute inset-0 bg-black">
-            <img
-              src={getPhotoUrl(currentPhoto.photo_reference) || ''}
-              alt={place.name}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-black bg-opacity-30" />
-          </div>
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-sunset-coral-500 to-sunset-coral-700">
-            <div className="flex items-center justify-center h-full">
-              <Camera className="h-20 w-20 text-white opacity-50" />
-            </div>
-          </div>
-        )}
 
-        {!isNext && (
-          <>
-            {/* Image Navigation Dots */}
-            {photos.length > 1 && (
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-10">
-                {photos.map((_, index) => (
-                  <div
-                    key={index}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      index === currentImageIndex ? 'bg-white' : 'bg-white opacity-50'
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Image Navigation Arrows */}
-            {photos.length > 1 && (
-              <>
-                <button
-                  onClick={() => navigateToImage(currentImageIndex - 1)}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-opacity z-10"
-                >
-                  <ChevronLeft className="h-6 w-6" />
-                </button>
-                <button
-                  onClick={() => navigateToImage(currentImageIndex + 1)}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-opacity z-10"
-                >
-                  <ChevronRight className="h-6 w-6" />
-                </button>
-              </>
-            )}
-
-            {/* Content Overlay */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 text-white z-10">
-              <div className="max-w-md">
-                <h2 className="text-2xl md:text-3xl font-bold mb-3">{place.name}</h2>
-                
-                <div className="flex items-center gap-4 mb-3">
-                  {place.rating && (
-                    <div className="flex items-center gap-1">
-                      <Star className="h-5 w-5 text-yellow-400 fill-current" />
-                      <span className="font-medium">{place.rating}</span>
-                      {place.user_ratings_total && (
-                        <span className="opacity-75">({place.user_ratings_total})</span>
-                      )}
-                    </div>
-                  )}
-                  {renderPriceLevel(place.price_level)}
-                  {place.opening_hours && (
-                    <div className={`px-2 py-1 rounded text-sm font-medium ${
-                      place.opening_hours.open_now 
-                        ? 'bg-green-500 text-white' 
-                        : 'bg-red-500 text-white'
-                    }`}>
-                      <Clock className="h-3 w-3 inline mr-1" />
-                      {place.opening_hours.open_now ? 'Open' : 'Closed'}
-                    </div>
-                  )}
-                </div>
-
-                {place.vicinity && (
-                  <div className="flex items-start gap-2 mb-4 opacity-90">
-                    <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm">{place.vicinity}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="absolute right-4 bottom-20 flex flex-col gap-4 z-10">
-              <button className="bg-white bg-opacity-20 backdrop-blur-sm text-white p-3 rounded-full hover:bg-opacity-30 transition-all">
-                <Heart className="h-6 w-6" />
-              </button>
-              <button className="bg-white bg-opacity-20 backdrop-blur-sm text-white p-3 rounded-full hover:bg-opacity-30 transition-all">
-                <Share className="h-6 w-6" />
-              </button>
-              <button className="bg-white bg-opacity-20 backdrop-blur-sm text-white p-3 rounded-full hover:bg-opacity-30 transition-all">
-                <ExternalLink className="h-6 w-6" />
-              </button>
-            </div>
-
-            {/* Navigation Hints */}
-            <div className="absolute left-1/2 bottom-4 transform -translate-x-1/2 text-white text-center opacity-70 z-10">
-              <div className="hidden md:block text-sm">
-                <p>← → Navigate images • ↑ ↓ Next place</p>
-              </div>
-              <div className="md:hidden text-sm">
-                <p>Swipe to explore</p>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    )
-  }
-
-  const PlaceCard = ({ place }: { place: Place }) => (
-    <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border border-gray-200">
-      {place.photos && place.photos[0] && getPhotoUrl(place.photos[0].photo_reference) && (
-        <div className="relative h-48 bg-gray-200 rounded-t-lg overflow-hidden">
-          <img
-            src={getPhotoUrl(place.photos[0].photo_reference) || ''}
-            alt={place.name}
-            className="w-full h-full object-cover"
-          />
-          {place.opening_hours && (
-            <div className={`absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium ${
-              place.opening_hours.open_now 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-red-100 text-red-800'
-            }`}>
-              {place.opening_hours.open_now ? 'Open Now' : 'Closed'}
-            </div>
-          )}
-        </div>
-      )}
-      
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">{place.name}</h3>
-        
-        <div className="flex items-center gap-3 mb-2">
-          {place.rating && (
-            <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 text-yellow-500 fill-current" />
-              <span className="text-sm font-medium">{place.rating}</span>
-              {place.user_ratings_total && (
-                <span className="text-sm text-gray-500">({place.user_ratings_total})</span>
-              )}
-            </div>
-          )}
-          {renderPriceLevel(place.price_level)}
-        </div>
-        
-        {place.vicinity && (
-          <div className="flex items-start gap-1 text-sm text-gray-600">
-            <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
-            <span className="line-clamp-2">{place.vicinity}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  )
 
   if (loading) {
     return (
@@ -575,232 +954,35 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     )
   }
 
-  const allDisplayPlaces = selectedCategory === 'all' 
-    ? getAllPlaces() 
-    : categories.find(cat => cat.id === selectedCategory)?.places || []
-  
-  const displayPlaces = showAllPlaces ? allDisplayPlaces : allDisplayPlaces.slice(0, 12)
+  // allDisplayPlaces and displayPlaces now defined above with useMemo
 
-  const isAdmin = session?.user?.id ? 
-    itinerary?.members?.some((m: any) => m.user.id === session.user.id && m.role === 'admin') || 
-    itinerary?.createdBy === session.user.id : false
-
-  if (viewMode === 'grid') {
-    return (
-      <div className="min-h-screen bg-cloud-white">
-        <TripHeader 
-          itinerary={itinerary} 
-          session={session} 
-          isAdmin={isAdmin}
-          currentPage="explore" 
-        />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* View Mode Toggle */}
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => setViewMode('tiktok')}
-              className="flex items-center gap-2 px-4 py-2 bg-sunset-coral-600 text-white rounded-lg hover:bg-sunset-coral-700 transition-colors"
-            >
-              <Film className="h-4 w-4" />
-              TikTok View
-            </button>
-          </div>
-
-          {/* Day Selection & AI Suggestions Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-sunset-coral-600" />
-                <h2 className="text-lg font-semibold">AI Recommendations for {itinerary.destination}</h2>
-              </div>
-              <button
-                onClick={handleRefreshSuggestions}
-                disabled={loadingExplore}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-sunset-coral-600 text-white rounded-lg hover:bg-sunset-coral-700 disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 ${loadingExplore ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-            </div>
-
-            {/* Day Selection */}
-            {itinerary?.days && itinerary.days.length > 1 && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Explore places for specific day (optional):
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedDay(null)
-                      explorePlaces(resolvedParams.id)
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      selectedDay === null
-                        ? 'bg-sunset-coral-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    All Days
-                  </button>
-                  {itinerary.days.map((day: any, index: number) => (
-                    <button
-                      key={day.id}
-                      onClick={() => handleDayChange(day.id)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        selectedDay === day.id
-                          ? 'bg-sunset-coral-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      Day {index + 1} ({new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {loadingExplore ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-sunset-coral-600" />
-                <span className="ml-2 text-gray-600">Getting personalized recommendations...</span>
-              </div>
-            ) : gptSuggestions.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {gptSuggestions.map((suggestion, index) => (
-                  <div
-                    key={index}
-                    className="px-3 py-1.5 bg-sunset-coral-50 text-sunset-coral-700 rounded-full text-sm font-medium"
-                  >
-                    {suggestion}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-4">
-                Loading AI-powered recommendations...
-              </p>
-            )}
-          </div>
-
-          {/* Category Tabs */}
-          <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
-            <button
-              onClick={() => {
-                setSelectedCategory('all')
-                setShowAllPlaces(false)
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-                selectedCategory === 'all'
-                  ? 'bg-sunset-coral-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <MapPin className="h-4 w-4" />
-              All Places
-            </button>
-            
-            {categories.map(category => {
-              const Icon = category.icon
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => {
-                    setSelectedCategory(category.id)
-                    setShowAllPlaces(false)
-                  }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
-                    selectedCategory === category.id
-                      ? 'bg-sunset-coral-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {category.name}
-                  {category.places.length > 0 && (
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                      selectedCategory === category.id
-                        ? 'bg-white/20'
-                        : 'bg-gray-100'
-                    }`}>
-                      {category.places.length}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Places Grid */}
-          {categories.find(cat => cat.id === selectedCategory)?.loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-sunset-coral-600" />
-              <span className="ml-2 text-gray-600">Searching for places...</span>
-            </div>
-          ) : displayPlaces.length > 0 ? (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {displayPlaces.map(place => (
-                  <PlaceCard key={place.place_id} place={place} />
-                ))}
-              </div>
-              
-              {/* Show More Button */}
-              {allDisplayPlaces.length > 12 && (
-                <div className="text-center mt-8">
-                  {!showAllPlaces ? (
-                    <button
-                      onClick={() => setShowAllPlaces(true)}
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-sunset-coral-600 text-white rounded-lg hover:bg-sunset-coral-700 transition-colors"
-                    >
-                      Show More Places ({allDisplayPlaces.length - 12} more)
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setShowAllPlaces(false)}
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                    >
-                      Show Less
-                    </button>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-12">
-              <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">
-                {selectedCategory === 'all' 
-                  ? 'Get AI suggestions to discover places'
-                  : `No ${categories.find(cat => cat.id === selectedCategory)?.name.toLowerCase()} found yet`}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // TikTok-style view
+  // Immersive full-screen view - this is the only view for explore
   return (
-    <div className="min-h-screen bg-black overflow-hidden">
+    <div 
+      className="min-h-screen bg-black overflow-hidden"
+      style={{ 
+        touchAction: 'none', 
+        overscrollBehavior: 'none',
+        paddingLeft: 'calc(100vw - 100%)'
+      }}
+    >
       {/* Header - only visible on desktop or when not in full screen */}
-      <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black to-transparent p-4">
+      <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black via-black/50 to-transparent p-4">
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setViewMode('grid')}
-              className="bg-white bg-opacity-20 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm hover:bg-opacity-30 transition-all"
+              onClick={() => router.push(`/itinerary/${resolvedParams.id}`)}
+              className="bg-black bg-opacity-60 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm hover:bg-opacity-70 transition-all border border-white/20"
+              style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}
             >
-              ← Grid View
+              ← Overview
             </button>
-            <h1 className="text-lg font-semibold">{itinerary.destination}</h1>
+            <h1 className="text-lg font-semibold" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>{itinerary.destination}</h1>
           </div>
           <button
             onClick={handleRefreshSuggestions}
             disabled={loadingExplore}
-            className="bg-white bg-opacity-20 backdrop-blur-sm p-2 rounded-lg hover:bg-opacity-30 transition-all"
+            className="bg-black bg-opacity-60 backdrop-blur-sm p-2 rounded-lg hover:bg-opacity-70 transition-all border border-white/20"
           >
             <RefreshCw className={`h-5 w-5 ${loadingExplore ? 'animate-spin' : ''}`} />
           </button>
@@ -817,44 +999,60 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
-      {/* TikTok-style Place Cards */}
+      {/* Immersive Place Cards - Custom Scroll Container */}
       {!loadingExplore && allDisplayPlaces.length > 0 && (
-        <div className="relative h-screen">
-          {/* Current Place */}
-          <TikTokPlaceCard place={allDisplayPlaces[currentPlaceIndex]} />
-          
-          {/* Next Place Peek (Desktop only) */}
-          {allDisplayPlaces[currentPlaceIndex + 1] && (
-            <div className="hidden md:block absolute bottom-0 left-0 right-0">
-              <TikTokPlaceCard place={allDisplayPlaces[currentPlaceIndex + 1]} isNext={true} />
-            </div>
-          )}
-
-          {/* Navigation Buttons */}
-          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={() => navigateToPlace(currentPlaceIndex - 1)}
-                className="bg-white bg-opacity-20 backdrop-blur-sm text-white p-3 rounded-full hover:bg-opacity-30 transition-all opacity-0 hover:opacity-100"
-                disabled={currentPlaceIndex === 0}
+        <div 
+          className="immersive-scroll-container h-screen overflow-y-scroll z-10 scrollbar-hide"
+          style={{ 
+            scrollBehavior: 'smooth',
+            overscrollBehavior: 'none',
+            touchAction: 'none'
+          }}
+        >
+          {allDisplayPlaces.map((place, index) => {
+            // Only render current place and adjacent places for performance
+            // This prevents loading images for all places at once
+            const shouldRender = index >= currentPlaceIndex - 1 && index <= currentPlaceIndex + 1
+            
+            return (
+              <div 
+                key={place.place_id} 
+                className="h-screen flex-shrink-0"
               >
-                <ChevronUp className="h-6 w-6" />
-              </button>
-              <button
-                onClick={() => navigateToPlace(currentPlaceIndex + 1)}
-                className="bg-white bg-opacity-20 backdrop-blur-sm text-white p-3 rounded-full hover:bg-opacity-30 transition-all opacity-0 hover:opacity-100"
-                disabled={currentPlaceIndex === allDisplayPlaces.length - 1}
-              >
-                <ChevronDown className="h-6 w-6" />
-              </button>
-            </div>
-          </div>
+                {shouldRender ? (
+                  <ImmersivePlaceCard 
+                    key={place.place_id} 
+                    place={place} 
+                    isNext={false} 
+                    placeIndex={index}
+                    currentPlaceIndex={currentPlaceIndex}
+                    currentImageIndex={currentImageIndex}
+                    isImageScrolling={isImageScrolling}
+                    enhancedPlaces={enhancedPlaces}
+                    loadingEnhancedPlace={loadingEnhancedPlace}
+                    placeImageIndexes={placeImageIndexes}
+                    onNavigateToImage={navigateToImage}
+                    wishlistItems={wishlistItems}
+                    onToggleWishlist={toggleWishlist}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                    <div className="text-white opacity-50">
+                      <Camera className="h-20 w-20" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
-          {/* Progress Indicator */}
-          <div className="absolute top-20 right-4 z-20">
-            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-3 py-1 text-white text-sm">
-              {currentPlaceIndex + 1} / {allDisplayPlaces.length}
-            </div>
+      {/* Progress Indicator - Fixed Position */}
+      {!loadingExplore && allDisplayPlaces.length > 0 && (
+        <div className="absolute top-20 right-4 z-30">
+          <div className="bg-black bg-opacity-60 backdrop-blur-sm rounded-full px-3 py-1 text-white text-sm border border-white/20" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+            {currentPlaceIndex + 1} / {allDisplayPlaces.length}
           </div>
         </div>
       )}

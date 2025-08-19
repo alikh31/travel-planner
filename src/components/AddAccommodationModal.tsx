@@ -126,45 +126,35 @@ export default function AddAccommodationModal({
     if (!placeId) return null
     
     try {
-      const { loadGoogleMaps } = await import('../lib/googleMaps')
-      const google = await loadGoogleMaps()
+      // Use backend API to get place details with photos
+      const response = await fetch('/api/place-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ placeId })
+      })
       
-      if (!google) {
-        console.warn('Google Maps failed to load, photo fetching unavailable')
+      if (!response.ok) {
+        console.warn('Failed to get place details for photo')
         return null
       }
-
-      return new Promise((resolve) => {
-        try {
-          const service = new google.maps.places.PlacesService(document.createElement('div'))
-          
-          service.getDetails({
-            placeId: placeId,
-            fields: ['photos']
-          }, (place: any, status: any) => {
-            try {
-              if (status === google.maps.places.PlacesServiceStatus.OK && place?.photos && place.photos.length > 0) {
-                // Get the first photo URL with appropriate size
-                const photoUrl = place.photos[0].getUrl({ maxWidth: 400, maxHeight: 300 })
-                resolve(photoUrl)
-              } else {
-                if (status !== google.maps.places.PlacesServiceStatus.OK) {
-                  console.warn('Places API request failed with status:', status)
-                }
-                resolve(null)
-              }
-            } catch (error) {
-              console.warn('Error processing place details:', error)
-              resolve(null)
-            }
-          })
-        } catch (error) {
-          console.warn('Error creating places service:', error)
-          resolve(null)
+      
+      const data = await response.json()
+      
+      if (data.success && data.data.photos && data.data.photos.length > 0) {
+        // Get the first photo reference/name
+        const firstPhoto = data.data.photos[0]
+        const photoReference = firstPhoto.name || firstPhoto.photo_reference
+        
+        if (photoReference) {
+          // Return the backend image URL with proper format detection
+          const isNewAPIPhotoName = photoReference.startsWith('places/') && photoReference.includes('/photos/')
+          return `/api/images?name=${encodeURIComponent(photoReference)}&maxWidth=400${isNewAPIPhotoName ? '' : '&legacy=true'}`
         }
-      })
+      }
+      
+      return null
     } catch (error) {
-      console.warn('Error loading Google Maps for photo fetching:', error)
+      console.error('Error fetching place photo from backend:', error)
       return null
     }
   }, [])

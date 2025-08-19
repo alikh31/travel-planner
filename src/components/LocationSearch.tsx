@@ -26,7 +26,7 @@ interface LocationSearchProps {
 export default function LocationSearch({ 
   value, 
   onChange, 
-  placeholder = "Search for a location...",
+  placeholder = "Search for accommodation location...",
   className = ""
 }: LocationSearchProps) {
   const [searchQuery, setSearchQuery] = useState(value)
@@ -34,23 +34,7 @@ export default function LocationSearch({
   const [loading, setLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
-  const [googleMaps, setGoogleMaps] = useState<any>(null)
   const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
-
-  // Initialize Google Maps once
-  useEffect(() => {
-    const initGoogleMaps = async () => {
-      try {
-        const { loadGoogleMaps } = await import('../lib/googleMaps')
-        const google = await loadGoogleMaps()
-        setGoogleMaps(google)
-      } catch (error) {
-        console.error('Failed to load Google Maps:', error)
-      }
-    }
-
-    initGoogleMaps()
-  }, [])
 
   // Update search query when value changes
   useEffect(() => {
@@ -58,43 +42,46 @@ export default function LocationSearch({
   }, [value])
 
   const searchPlaces = async (query: string) => {
-    if (!query.trim() || !googleMaps) {
+    if (!query.trim()) {
       setSuggestions([])
       return
     }
 
     setLoading(true)
     try {
-      const service = new googleMaps.maps.places.PlacesService(document.createElement('div'))
-      
-      service.textSearch(
-        {
-          query,
-          type: 'establishment',
-        },
-        (results: any, status: any) => {
-          if (status === googleMaps.maps.places.PlacesServiceStatus.OK && results) {
-            const places: PlaceResult[] = results.slice(0, 5).map((place: any) => ({
-              name: place.name || '',
-              formatted_address: place.formatted_address || '',
-              place_id: place.place_id || '',
-              geometry: {
-                location: {
-                  lat: place.geometry?.location?.lat() || 0,
-                  lng: place.geometry?.location?.lng() || 0,
-                }
-              },
-              types: place.types || [],
-            }))
-            setSuggestions(places)
-            setSelectedIndex(-1) // Reset selection when new results arrive
-          } else {
-            setSuggestions([])
-            setSelectedIndex(-1)
-          }
-          setLoading(false)
+      const response = await fetch('/api/location-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query.trim() })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.results && Array.isArray(data.results)) {
+          const places: PlaceResult[] = data.results.slice(0, 5).map((place: any) => ({
+            name: place.name || '',
+            formatted_address: place.formatted_address || '',
+            place_id: place.place_id || '',
+            geometry: {
+              location: {
+                lat: place.geometry?.location?.lat || 0,
+                lng: place.geometry?.location?.lng || 0,
+              }
+            },
+            types: [], // Not needed for basic location search
+          }))
+          setSuggestions(places)
+          setSelectedIndex(-1)
+        } else {
+          setSuggestions([])
+          setSelectedIndex(-1)
         }
-      )
+      } else {
+        console.warn('Location search failed:', response.status)
+        setSuggestions([])
+        setSelectedIndex(-1)
+      }
+      setLoading(false)
     } catch (error) {
       console.error('Error searching places:', error)
       setSuggestions([])
@@ -142,7 +129,7 @@ export default function LocationSearch({
   }
 
   const handleFocus = () => {
-    if (searchQuery.trim() && suggestions.length === 0 && googleMaps) {
+    if (searchQuery.trim() && suggestions.length === 0) {
       setIsOpen(true)
       searchPlaces(searchQuery)
     }
@@ -196,8 +183,8 @@ export default function LocationSearch({
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          placeholder={googleMaps ? placeholder : "Loading..."}
-          disabled={!googleMaps}
+          placeholder={placeholder}
+          disabled={false}
           className="w-full border border-gray-300 rounded-lg px-3 py-2 pl-10 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
         />
         <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { ArrowLeft, RefreshCw, ChevronRight, MapPin, Home, Bed, Users, Compass } from 'lucide-react'
+import { ArrowLeft, RefreshCw, ChevronRight } from 'lucide-react'
 import UserMenu from './UserMenu'
 
 interface User {
@@ -106,56 +106,6 @@ export default function TripHeader({
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-1 mt-4 border-t border-gray-200 pt-3">
-          <Link
-            href={`/itinerary/${itinerary.id}`}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              currentPage === undefined
-                ? 'bg-sunset-coral-100 text-sunset-coral-700'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            <Home className="h-4 w-4" />
-            Overview
-          </Link>
-          
-          <Link
-            href={`/itinerary/${itinerary.id}/accommodation`}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              currentPage === 'accommodation'
-                ? 'bg-sunset-coral-100 text-sunset-coral-700'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            <Bed className="h-4 w-4" />
-            Accommodation
-          </Link>
-          
-          <Link
-            href={`/itinerary/${itinerary.id}/members`}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              currentPage === 'members'
-                ? 'bg-sunset-coral-100 text-sunset-coral-700'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            <Users className="h-4 w-4" />
-            Members
-          </Link>
-          
-          <Link
-            href={`/itinerary/${itinerary.id}/explore`}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              currentPage === 'explore'
-                ? 'bg-sunset-coral-100 text-sunset-coral-700'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            <Compass className="h-4 w-4" />
-            Explore
-          </Link>
-        </div>
 
       </div>
     </header>
