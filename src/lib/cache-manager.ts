@@ -189,12 +189,12 @@ export async function clearExpiredCache(): Promise<void> {
               await fs.unlink(filePath)
               console.log(`Removed expired cache: ${file}`)
             }
-          } catch (err) {
+          } catch {
             // Skip invalid files
           }
         }
       }
-    } catch (error) {
+    } catch {
       // Directory might not exist yet
     }
   }
@@ -250,7 +250,7 @@ export async function getCacheStats(): Promise<{
       stats.byFolder[subfolder] = { files: fileCount, size: folderSize }
       stats.totalFiles += fileCount
       stats.totalSize += folderSize
-    } catch (error) {
+    } catch {
       stats.byFolder[subfolder] = { files: 0, size: 0 }
     }
   }

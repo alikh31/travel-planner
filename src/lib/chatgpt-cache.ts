@@ -108,7 +108,7 @@ export async function getChatGPTCacheStats(itineraryId: string): Promise<{
         totalFiles: files.length,
         files: files.sort()
       }
-    } catch (dirError) {
+    } catch {
       // Directory doesn't exist yet
       return {
         conversationCount: 0,
@@ -158,7 +158,7 @@ export async function getAllChatGPTCacheStats(): Promise<{
       }
       
       return stats
-    } catch (dirError) {
+    } catch {
       // ChatGPT directory doesn't exist yet
       return {
         totalTrips: 0,

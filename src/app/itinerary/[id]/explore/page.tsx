@@ -350,8 +350,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   const [isImageScrolling, setIsImageScrolling] = useState(false)
   const [enhancedPlaces, setEnhancedPlaces] = useState<Map<string, any>>(new Map())
   const [loadingEnhancedPlace, setLoadingEnhancedPlace] = useState<string | null>(null)
-  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
-  const [imageUrlCache] = useState<Map<string, string>>(new Map())
   const [wishlistItems, setWishlistItems] = useState<Set<string>>(new Set())
   const [sessionId] = useState(() => `explore_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
   const [placeMetadata, setPlaceMetadata] = useState<Map<string, any>>(new Map())
@@ -750,7 +748,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       scrollContainer.dataset.touchStartY = touch.clientY.toString()
     }
 
-    const handleTouchMove = (e: TouchEvent) => {
+    const handleTouchMove = () => {
       // Let the global handler prevent default, we just need to track movement
     }
 
@@ -1007,9 +1005,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
 
 
-  const isImageLoaded = useCallback((imageKey: string) => {
-    return loadedImages.has(imageKey)
-  }, [loadedImages])
 
   const renderPriceLevel = useCallback((level?: number) => {
     if (!level) return null
