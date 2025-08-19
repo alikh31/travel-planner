@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Hotel, MapPin, Users, Calendar, Clock, DoorOpen, AlertCircle } from 'lucide-react'
+import { Hotel, MapPin, Users, Calendar, DoorOpen, AlertCircle } from 'lucide-react'
 import { getPlacePhoto } from '@/lib/googleMaps'
 
 interface Accommodation {

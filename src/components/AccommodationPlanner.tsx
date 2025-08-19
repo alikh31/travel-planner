@@ -71,7 +71,7 @@ export default function AccommodationPlanner({
     if (savedExpanded !== null && savedExpanded !== undefined) {
       try {
         setIsExpanded(JSON.parse(savedExpanded))
-      } catch (error) {
+      } catch {
         // Invalid JSON, ignore and use default
         console.warn('Invalid JSON in localStorage for key:', storageKey)
       }

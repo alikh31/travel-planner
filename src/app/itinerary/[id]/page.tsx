@@ -354,7 +354,6 @@ function ItineraryDetail({ params }: { params: Promise<{ id: string }> | { id: s
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [showMap, setShowMap] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isDeletingActivity, setIsDeletingActivity] = useState(false)
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   
