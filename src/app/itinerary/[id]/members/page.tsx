@@ -55,7 +55,7 @@ export default function MembersPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     fetchItinerary()
-  }, [resolvedParams.id])
+  }, [resolvedParams.id, fetchItinerary])
 
   const fetchItinerary = async () => {
     try {

@@ -376,7 +376,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     fetchItinerary()
     fetchWishlist()
-  }, [resolvedParams.id])
+  }, [resolvedParams.id, fetchItinerary, fetchWishlist])
 
   const getAllPlaces = useCallback(() => {
     const allPlaces = new Map<string, Place>()
@@ -594,7 +594,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       
       setIsScrolling(false)
     }
-  }, [allDisplayPlaces, currentPlaceIndex, isScrolling, placeImageIndexes, startPlaceView, lastFetchTriggerIndex, loadingMoreSuggestions, resolvedParams.id, selectedDay])
+  }, [allDisplayPlaces, currentPlaceIndex, isScrolling, placeImageIndexes, startPlaceView, lastFetchTriggerIndex, loadingMoreSuggestions, resolvedParams.id, selectedDay, placeMetadata])
 
   const navigateToImage = useCallback((newIndex: number) => {
     const currentPlace = allDisplayPlaces[currentPlaceIndex]
@@ -1006,19 +1006,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
 
 
-  const renderPriceLevel = useCallback((level?: number) => {
-    if (!level) return null
-    return (
-      <div className="flex items-center gap-0.5">
-        {[...Array(4)].map((_, i) => (
-          <DollarSign 
-            key={i}
-            className={`h-3 w-3 ${i < level ? 'text-green-600' : 'text-gray-300'}`}
-          />
-        ))}
-      </div>
-    )
-  }, [])
 
 
 
