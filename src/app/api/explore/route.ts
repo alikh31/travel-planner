@@ -231,50 +231,40 @@ export async function POST(request: NextRequest) {
 - Places I spent the most time viewing: ${mostViewedPlaces.join(', ')}`
       }
 
-      // Add detailed analysis of latest 50 activities
+      // Add raw detailed analysis of latest 50 activities
       prompt += `\n\nDetailed Analysis of My Latest 50 Activities:`
       
+      // Show individual activities with raw data
+      prompt += `\nRecent Activity Log (most recent first):`
+      latest50Activities.forEach((activity, index) => {
+        const viewTimeSeconds = activity.totalViewTime ? Math.round(activity.totalViewTime / 1000) : 0
+        const wishlistStatus = activity.addedToWishlist ? '✓ WISHLISTED' : ''
+        const sourceType = activity.isGptSuggestion ? '[GPT]' : 
+                          activity.searchSource === 'nearby_search' ? '[NEARBY]' :
+                          activity.searchSource === 'text_search' ? '[TEXT]' : '[OTHER]'
+        const categoryInfo = activity.gptCategory ? ` (${activity.gptCategory})` : ''
+        
+        prompt += `\n${index + 1}. ${activity.placeName}${categoryInfo} ${sourceType}
+   - View time: ${viewTimeSeconds}s | Images viewed: ${activity.imageSlides} | ${wishlistStatus || 'Not wishlisted'}`
+        
+        if (activity.timeToWishlist && activity.addedToWishlist) {
+          prompt += ` | Wishlisted after: ${Math.round(activity.timeToWishlist / 1000)}s`
+        }
+      })
+
+      // Add aggregated insights after the raw data
       if (gptEngagement && gptSuggestedPlaces.length > 0) {
-        prompt += `
-- GPT Suggested Places Performance (${gptSuggestedPlaces.length} places):
-  * Average view time: ${Math.round(gptEngagement.avgViewTime / 1000)} seconds
-  * Average images viewed: ${Math.round(gptEngagement.avgImageSlides)}
-  * Wishlist conversion: ${Math.round(gptEngagement.wishlistRate * 100)}%`
+        prompt += `\n\nGPT Suggestions Summary (${gptSuggestedPlaces.length} places):
+- Average view time: ${Math.round(gptEngagement.avgViewTime / 1000)}s
+- Average images viewed: ${Math.round(gptEngagement.avgImageSlides)}
+- Wishlist conversion: ${Math.round(gptEngagement.wishlistRate * 100)}%`
       }
 
       if (preferredCategories.length > 0) {
-        prompt += `
-- My Most Engaged Categories:
+        prompt += `\n\nMost Engaged Categories:
 ${preferredCategories.map(cat => 
-  `  * ${cat.category}: ${cat.count} views, ${Math.round(cat.avgViewTime / 1000)}s avg, ${Math.round(cat.wishlistRate * 100)}% wishlist rate`
+  `- ${cat.category}: ${cat.count} views, ${Math.round(cat.avgViewTime / 1000)}s avg, ${Math.round(cat.wishlistRate * 100)}% wishlist rate`
 ).join('\n')}`
-      }
-
-      if (recentWishlistAdds.length > 0) {
-        prompt += `
-- Recent Places I Added to Wishlist: ${recentWishlistAdds.map(a => a.placeName).join(', ')}`
-      }
-
-      if (quickDismissals.length > 0) {
-        prompt += `
-- Places I Quickly Dismissed (low engagement): ${quickDismissals.map(a => a.placeName).slice(0, 5).join(', ')}`
-      }
-
-      if (deepEngagements.length > 0) {
-        prompt += `
-- Places I Spent Most Time Exploring: ${deepEngagements.map(a => `${a.placeName} (${Math.round((a.totalViewTime || 0) / 1000)}s)`).slice(0, 5).join(', ')}`
-      }
-
-      // Add source preference analysis
-      const sourceStats = {
-        gpt: gptSuggestedPlaces.length,
-        nearby: nearbySearchPlaces.length,
-        text: textSearchPlaces.length
-      }
-      
-      if (sourceStats.gpt > 0 || sourceStats.nearby > 0 || sourceStats.text > 0) {
-        prompt += `
-- Place Discovery Preferences: ${sourceStats.gpt > sourceStats.nearby + sourceStats.text ? 'I prefer AI-curated suggestions' : sourceStats.nearby > sourceStats.gpt + sourceStats.text ? 'I prefer exploring nearby places' : 'I engage with various discovery methods'}`
       }
 
       prompt += `\n\nBased on this detailed behavior analysis, suggest places that specifically align with my demonstrated engagement patterns and category preferences.`
