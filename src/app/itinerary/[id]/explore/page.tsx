@@ -375,6 +375,124 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     }
   }, [status, router])
 
+  const explorePlaces = useCallback(async (itineraryId: string, dayId?: string, append = false) => {
+    if (append) {
+      setLoadingMoreSuggestions(true)
+    } else {
+      setLoadingExplore(true)
+      // setGptSuggestions([])
+      // Reset categories only for initial load
+      setCategories([])
+      setLastFetchTriggerIndex(-1)
+      setStableDisplayPlaces([])
+      setIsInitialLoad(true)
+    }
+    
+    try {
+      const response = await fetch('/api/explore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itineraryId,
+          dayId,
+          excludeExisting: append // Tell API to exclude already suggested places
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        
+        if (append) {
+          // Append new suggestions to existing ones
+          // setGptSuggestions(prev => [...prev, ...(data.suggestions || [])])
+          
+          // Merge place metadata
+          if (data.placeMetadata) {
+            setPlaceMetadata(prev => {
+              const newMap = new Map(prev)
+              Object.keys(data.placeMetadata).forEach(placeId => {
+                newMap.set(placeId, data.placeMetadata[placeId])
+              })
+              return newMap
+            })
+          }
+          
+          // Append new places to existing categories
+          if (data.places) {
+            setCategories(prev => {
+              const updatedCategories = [...prev]
+              Object.keys(data.places).forEach(categoryId => {
+                const existingCategory = updatedCategories.find(cat => cat.id === categoryId)
+                if (existingCategory) {
+                  existingCategory.places = [...existingCategory.places, ...(data.places[categoryId] || [])]
+                } else {
+                  updatedCategories.push({
+                    id: categoryId,
+                    places: data.places[categoryId] || []
+                  })
+                }
+              })
+              return updatedCategories
+            })
+          }
+        } else {
+          // Initial load - replace everything
+          // setGptSuggestions(data.suggestions || [])
+          
+          // Store place metadata
+          if (data.placeMetadata) {
+            const metadataMap = new Map<string, any>()
+            Object.keys(data.placeMetadata).forEach(placeId => {
+              metadataMap.set(placeId, data.placeMetadata[placeId])
+            })
+            setPlaceMetadata(metadataMap)
+          }
+          
+          // Update categories with places - convert to simple format for immersive view
+          const newCategories: { id: string; places: Place[] }[] = []
+          if (data.places) {
+            Object.keys(data.places).forEach(categoryId => {
+              newCategories.push({
+                id: categoryId,
+                places: data.places[categoryId] || []
+              })
+            })
+          }
+          setCategories(newCategories)
+          
+          // Reset place index when new places are loaded
+          setCurrentPlaceIndex(0)
+          setCurrentImageIndex(0)
+          
+          // Clear enhanced places cache when new places are loaded
+          setEnhancedPlaces(new Map())
+          
+          // Start tracking first place if available
+          const firstPlace = newCategories.length > 0 && newCategories[0].places && newCategories[0].places.length > 0
+            ? newCategories[0].places[0]
+            : null
+          if (firstPlace) {
+            const metadata = data.placeMetadata?.[firstPlace.place_id]
+            setTimeout(() => {
+              startPlaceView(firstPlace.place_id, firstPlace.name, 0, metadata)
+            }, 100) // Small delay to ensure state is updated
+          }
+        }
+        
+      } else {
+        console.error('Failed to explore places')
+      }
+    } catch (error) {
+      console.error('Error exploring places:', error)
+    } finally {
+      if (append) {
+        setLoadingMoreSuggestions(false)
+      } else {
+        setLoadingExplore(false)
+      }
+    }
+  }, [startPlaceView])
+
   const fetchItinerary = useCallback(async () => {
     try {
       const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
@@ -386,7 +504,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
           setSelectedDay(data.days[0].id)
         }
         // Automatically explore places when itinerary loads
-        // explorePlaces(data.id, data.days?.[0]?.id)
+        explorePlaces(data.id, data.days?.[0]?.id)
       } else {
         console.error('Failed to fetch itinerary')
       }
@@ -395,7 +513,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     } finally {
       setLoading(false)
     }
-  }, [resolvedParams.id])
+  }, [resolvedParams.id, explorePlaces])
 
   const fetchWishlist = useCallback(async () => {
     try {
@@ -884,124 +1002,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       console.error('Error toggling wishlist:', error)
     }
   }
-
-  const explorePlaces = useCallback(async (itineraryId: string, dayId?: string, append = false) => {
-    if (append) {
-      setLoadingMoreSuggestions(true)
-    } else {
-      setLoadingExplore(true)
-      // setGptSuggestions([])
-      // Reset categories only for initial load
-      setCategories([])
-      setLastFetchTriggerIndex(-1)
-      setStableDisplayPlaces([])
-      setIsInitialLoad(true)
-    }
-    
-    try {
-      const response = await fetch('/api/explore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          itineraryId,
-          dayId,
-          excludeExisting: append // Tell API to exclude already suggested places
-        })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        
-        if (append) {
-          // Append new suggestions to existing ones
-          // setGptSuggestions(prev => [...prev, ...(data.suggestions || [])])
-          
-          // Merge place metadata
-          if (data.placeMetadata) {
-            setPlaceMetadata(prev => {
-              const newMap = new Map(prev)
-              Object.keys(data.placeMetadata).forEach(placeId => {
-                newMap.set(placeId, data.placeMetadata[placeId])
-              })
-              return newMap
-            })
-          }
-          
-          // Append new places to existing categories
-          if (data.places) {
-            setCategories(prev => {
-              const updatedCategories = [...prev]
-              Object.keys(data.places).forEach(categoryId => {
-                const existingCategory = updatedCategories.find(cat => cat.id === categoryId)
-                if (existingCategory) {
-                  existingCategory.places = [...existingCategory.places, ...(data.places[categoryId] || [])]
-                } else {
-                  updatedCategories.push({
-                    id: categoryId,
-                    places: data.places[categoryId] || []
-                  })
-                }
-              })
-              return updatedCategories
-            })
-          }
-        } else {
-          // Initial load - replace everything
-          // setGptSuggestions(data.suggestions || [])
-          
-          // Store place metadata
-          if (data.placeMetadata) {
-            const metadataMap = new Map<string, any>()
-            Object.keys(data.placeMetadata).forEach(placeId => {
-              metadataMap.set(placeId, data.placeMetadata[placeId])
-            })
-            setPlaceMetadata(metadataMap)
-          }
-          
-          // Update categories with places - convert to simple format for immersive view
-          const newCategories: { id: string; places: Place[] }[] = []
-          if (data.places) {
-            Object.keys(data.places).forEach(categoryId => {
-              newCategories.push({
-                id: categoryId,
-                places: data.places[categoryId] || []
-              })
-            })
-          }
-          setCategories(newCategories)
-          
-          // Reset place index when new places are loaded
-          setCurrentPlaceIndex(0)
-          setCurrentImageIndex(0)
-          
-          // Clear enhanced places cache when new places are loaded
-          setEnhancedPlaces(new Map())
-          
-          // Start tracking first place if available
-          const firstPlace = newCategories.length > 0 && newCategories[0].places && newCategories[0].places.length > 0
-            ? newCategories[0].places[0]
-            : null
-          if (firstPlace) {
-            const metadata = data.placeMetadata?.[firstPlace.place_id]
-            setTimeout(() => {
-              startPlaceView(firstPlace.place_id, firstPlace.name, 0, metadata)
-            }, 100) // Small delay to ensure state is updated
-          }
-        }
-        
-      } else {
-        console.error('Failed to explore places')
-      }
-    } catch (error) {
-      console.error('Error exploring places:', error)
-    } finally {
-      if (append) {
-        setLoadingMoreSuggestions(false)
-      } else {
-        setLoadingExplore(false)
-      }
-    }
-  }, [startPlaceView])
 
 
 
