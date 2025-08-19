@@ -1,5 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
+import yaml from 'js-yaml'
 import { CACHE_BASE_DIR } from './cache-manager'
 
 /**
@@ -7,28 +8,28 @@ import { CACHE_BASE_DIR } from './cache-manager'
  * Stores requests and responses organized by trip ID with timestamps
  */
 
-interface ChatGPTRequest {
+interface ChatGPTCache {
   itineraryId: string
-  model: string
-  messages: any[]
   timestamp: string
-  maxTokens?: number
-  temperature?: number
+  prompt: string
+  response: string
+  error?: string
 }
 
-interface ChatGPTResponse {
-  itineraryId: string
-  requestTimestamp: string
-  responseTimestamp: string
-  response: any
-  usage?: any
-  error?: string
+/**
+ * Convert escape sequences to actual line breaks for better readability
+ */
+function formatTextForYaml(text: string): string {
+  return text
+    .replace(/\\n/g, '\n')   // Convert \n to actual line breaks
+    .replace(/\\t/g, '\t')   // Convert \t to actual tabs
+    .replace(/\\r/g, '\r')   // Convert \r to actual carriage returns
 }
 
 /**
  * Generate timestamped filename
  */
-function generateTimestampedFilename(prefix: string, extension: string = 'json'): string {
+function generateTimestampedFilename(prefix: string, extension: string = 'yaml'): string {
   const now = new Date()
   const timestamp = now.toISOString()
     .replace(/[:.]/g, '-')
@@ -48,72 +49,42 @@ async function ensureChatGPTCacheDir(itineraryId: string): Promise<string> {
 }
 
 /**
- * Save ChatGPT request to cache
+ * Save ChatGPT conversation to cache (prompt and response in one file)
  */
-export async function saveChatGPTRequest(
+export async function saveChatGPTConversation(
   itineraryId: string,
-  messages: any[],
-  model: string = 'gpt-4o-mini',
-  options: { maxTokens?: number; temperature?: number } = {}
-): Promise<string> {
-  try {
-    const cacheDir = await ensureChatGPTCacheDir(itineraryId)
-    const timestamp = new Date().toISOString()
-    
-    const requestData: ChatGPTRequest = {
-      itineraryId,
-      model,
-      messages,
-      timestamp,
-      maxTokens: options.maxTokens,
-      temperature: options.temperature
-    }
-    
-    const filename = generateTimestampedFilename('request')
-    const filepath = path.join(cacheDir, filename)
-    
-    await fs.writeFile(filepath, JSON.stringify(requestData, null, 2))
-    
-    console.log(`📝 ChatGPT request cached: ${filename}`)
-    return timestamp
-  } catch (error) {
-    console.error('Error saving ChatGPT request to cache:', error)
-    return new Date().toISOString()
-  }
-}
-
-/**
- * Save ChatGPT response to cache
- */
-export async function saveChatGPTResponse(
-  itineraryId: string,
-  requestTimestamp: string,
-  response: any,
+  prompt: string,
+  response: string,
   error?: string
 ): Promise<void> {
   try {
     const cacheDir = await ensureChatGPTCacheDir(itineraryId)
-    const responseTimestamp = new Date().toISOString()
+    const timestamp = new Date().toISOString()
     
-    const responseData: ChatGPTResponse = {
+    const cacheData: ChatGPTCache = {
       itineraryId,
-      requestTimestamp,
-      responseTimestamp,
-      response: error ? null : response,
-      usage: response?.usage,
+      timestamp,
+      prompt: formatTextForYaml(prompt),
+      response: error ? '' : formatTextForYaml(response),
       error
     }
     
-    // Use the same timestamp format as request for easier matching
-    const requestTime = requestTimestamp.replace(/[:.]/g, '-').replace('T', '_').slice(0, -5)
-    const filename = `response_${requestTime}.json`
+    const filename = generateTimestampedFilename('conversation')
     const filepath = path.join(cacheDir, filename)
     
-    await fs.writeFile(filepath, JSON.stringify(responseData, null, 2))
+    // Write as YAML for better readability
+    const yamlContent = yaml.dump(cacheData, {
+      lineWidth: -1,        // No line wrapping
+      quotingType: '"',     // Use double quotes
+      forceQuotes: false,   // Only quote when necessary
+      sortKeys: false       // Keep original order
+    })
     
-    console.log(`💬 ChatGPT response cached: ${filename}`)
+    await fs.writeFile(filepath, yamlContent, 'utf8')
+    
+    console.log(`💬 ChatGPT conversation cached: ${filename}`)
   } catch (error) {
-    console.error('Error saving ChatGPT response to cache:', error)
+    console.error('Error saving ChatGPT conversation to cache:', error)
   }
 }
 
@@ -121,8 +92,7 @@ export async function saveChatGPTResponse(
  * Get ChatGPT cache stats for a trip
  */
 export async function getChatGPTCacheStats(itineraryId: string): Promise<{
-  requestCount: number
-  responseCount: number
+  conversationCount: number
   totalFiles: number
   files: string[]
 }> {
@@ -131,20 +101,17 @@ export async function getChatGPTCacheStats(itineraryId: string): Promise<{
     
     try {
       const files = await fs.readdir(cacheDir)
-      const requests = files.filter(f => f.startsWith('request_'))
-      const responses = files.filter(f => f.startsWith('response_'))
+      const conversations = files.filter(f => f.startsWith('conversation_') && f.endsWith('.yaml'))
       
       return {
-        requestCount: requests.length,
-        responseCount: responses.length,
+        conversationCount: conversations.length,
         totalFiles: files.length,
         files: files.sort()
       }
     } catch (dirError) {
       // Directory doesn't exist yet
       return {
-        requestCount: 0,
-        responseCount: 0,
+        conversationCount: 0,
         totalFiles: 0,
         files: []
       }
@@ -152,8 +119,7 @@ export async function getChatGPTCacheStats(itineraryId: string): Promise<{
   } catch (error) {
     console.error('Error getting ChatGPT cache stats:', error)
     return {
-      requestCount: 0,
-      responseCount: 0,
+      conversationCount: 0,
       totalFiles: 0,
       files: []
     }
@@ -165,10 +131,9 @@ export async function getChatGPTCacheStats(itineraryId: string): Promise<{
  */
 export async function getAllChatGPTCacheStats(): Promise<{
   totalTrips: number
-  totalRequests: number
-  totalResponses: number
+  totalConversations: number
   totalFiles: number
-  tripStats: Record<string, { requests: number; responses: number; files: number }>
+  tripStats: Record<string, { conversations: number; files: number }>
 }> {
   try {
     const chatgptDir = path.join(CACHE_BASE_DIR, 'chatgpt')
@@ -177,20 +142,17 @@ export async function getAllChatGPTCacheStats(): Promise<{
       const tripDirs = await fs.readdir(chatgptDir)
       const stats = {
         totalTrips: tripDirs.length,
-        totalRequests: 0,
-        totalResponses: 0,
+        totalConversations: 0,
         totalFiles: 0,
-        tripStats: {} as Record<string, { requests: number; responses: number; files: number }>
+        tripStats: {} as Record<string, { conversations: number; files: number }>
       }
       
       for (const tripId of tripDirs) {
         const tripStat = await getChatGPTCacheStats(tripId)
-        stats.totalRequests += tripStat.requestCount
-        stats.totalResponses += tripStat.responseCount
+        stats.totalConversations += tripStat.conversationCount
         stats.totalFiles += tripStat.totalFiles
         stats.tripStats[tripId] = {
-          requests: tripStat.requestCount,
-          responses: tripStat.responseCount,
+          conversations: tripStat.conversationCount,
           files: tripStat.totalFiles
         }
       }
@@ -200,8 +162,7 @@ export async function getAllChatGPTCacheStats(): Promise<{
       // ChatGPT directory doesn't exist yet
       return {
         totalTrips: 0,
-        totalRequests: 0,
-        totalResponses: 0,
+        totalConversations: 0,
         totalFiles: 0,
         tripStats: {}
       }
@@ -210,8 +171,7 @@ export async function getAllChatGPTCacheStats(): Promise<{
     console.error('Error getting all ChatGPT cache stats:', error)
     return {
       totalTrips: 0,
-      totalRequests: 0,
-      totalResponses: 0,
+      totalConversations: 0,
       totalFiles: 0,
       tripStats: {}
     }

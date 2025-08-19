@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use, useCallback, useMemo, memo } from 'react'
+import { useState, useEffect, use, useCallback, memo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useActivityTracking } from '@/hooks/useActivityTracking'
@@ -358,6 +358,10 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   const [placeMetadata, setPlaceMetadata] = useState<Map<string, any>>(new Map())
   
   const [categories, setCategories] = useState<any[]>([])
+  const [loadingMoreSuggestions, setLoadingMoreSuggestions] = useState(false)
+  const [lastFetchTriggerIndex, setLastFetchTriggerIndex] = useState(-1)
+  const [stableDisplayPlaces, setStableDisplayPlaces] = useState<any[]>([])
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   // Initialize activity tracking
   const { startPlaceView, endPlaceView, trackImageSlide, trackWishlistAdd } = useActivityTracking({
@@ -389,10 +393,40 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     return Array.from(allPlaces.values())
   }, [categories])
   
-  // Get all places for immersive view
-  const allDisplayPlaces = useMemo(() => {
-    return getAllPlaces()
-  }, [getAllPlaces])
+  // Update stable display places when categories change
+  useEffect(() => {
+    const newPlaces = getAllPlaces()
+    
+    if (isInitialLoad) {
+      // First load: randomize all places
+      const shuffled = [...newPlaces]
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+      setStableDisplayPlaces(shuffled)
+      setIsInitialLoad(false)
+    } else {
+      // Subsequent loads: only add new places, don't re-shuffle existing ones
+      setStableDisplayPlaces(prev => {
+        const existingPlaceIds = new Set(prev.map(p => p.place_id))
+        const newPlacesToAdd = newPlaces.filter(p => !existingPlaceIds.has(p.place_id))
+        
+        // Randomize only the new places
+        const shuffledNewPlaces = [...newPlacesToAdd]
+        for (let i = shuffledNewPlaces.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffledNewPlaces[i], shuffledNewPlaces[j]] = [shuffledNewPlaces[j], shuffledNewPlaces[i]]
+        }
+        
+        // Append new places to existing ones
+        return [...prev, ...shuffledNewPlaces]
+      })
+    }
+  }, [getAllPlaces, isInitialLoad])
+
+  // Use stable display places instead of the problematic useMemo
+  const allDisplayPlaces = stableDisplayPlaces
 
   // Fetch enhanced details for a specific place on-demand
   const fetchEnhancedDetails = useCallback(async (placeId: string) => {
@@ -469,6 +503,66 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     // Don't navigate if already at target
     if (targetIndex === currentPlaceIndex) return
     
+    // Check if we've reached within 5 of the end and haven't requested more at this threshold yet
+    const triggerPoint = Math.max(0, allDisplayPlaces.length - 5)
+    if (targetIndex >= triggerPoint && targetIndex > lastFetchTriggerIndex && !loadingMoreSuggestions) {
+      setLastFetchTriggerIndex(targetIndex)
+      // Request more suggestions in the background - we'll call this directly to avoid circular deps
+      setTimeout(() => {
+        fetch('/api/explore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            itineraryId: resolvedParams.id,
+            dayId: selectedDay || undefined,
+            excludeExisting: true,
+            currentSuggestions: allDisplayPlaces.map(place => place.name)
+          })
+        }).then(async (response) => {
+          if (response.ok) {
+            const data = await response.json()
+            // Append new suggestions
+            setGptSuggestions(prev => [...prev, ...(data.suggestions || [])])
+            
+            // Merge place metadata
+            if (data.placeMetadata) {
+              setPlaceMetadata(prev => {
+                const newMap = new Map(prev)
+                Object.keys(data.placeMetadata).forEach(placeId => {
+                  newMap.set(placeId, data.placeMetadata[placeId])
+                })
+                return newMap
+              })
+            }
+            
+            // Append new places to existing categories
+            if (data.places) {
+              setCategories(prev => {
+                const updatedCategories = [...prev]
+                Object.keys(data.places).forEach(categoryId => {
+                  const existingCategory = updatedCategories.find(cat => cat.id === categoryId)
+                  if (existingCategory) {
+                    existingCategory.places = [...existingCategory.places, ...(data.places[categoryId] || [])]
+                  } else {
+                    updatedCategories.push({
+                      id: categoryId,
+                      places: data.places[categoryId] || []
+                    })
+                  }
+                })
+                return updatedCategories
+              })
+            }
+            setLoadingMoreSuggestions(false)
+          }
+        }).catch((error) => {
+          console.error('Error loading more suggestions:', error)
+          setLoadingMoreSuggestions(false)
+        })
+      }, 0)
+      setLoadingMoreSuggestions(true)
+    }
+    
     setIsScrolling(true)
     
     // Scroll to the target place with smooth animation
@@ -516,7 +610,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       
       setIsScrolling(false)
     }
-  }, [allDisplayPlaces, currentPlaceIndex, isScrolling, placeImageIndexes, startPlaceView])
+  }, [allDisplayPlaces, currentPlaceIndex, isScrolling, placeImageIndexes, startPlaceView, lastFetchTriggerIndex, loadingMoreSuggestions, resolvedParams.id, selectedDay])
 
   const navigateToImage = useCallback((newIndex: number) => {
     const currentPlace = allDisplayPlaces[currentPlaceIndex]
@@ -811,12 +905,18 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  const explorePlaces = async (itineraryId: string, dayId?: string) => {
-    setLoadingExplore(true)
-    setGptSuggestions([])
-    
-    // Reset categories
-    setCategories([])
+  const explorePlaces = useCallback(async (itineraryId: string, dayId?: string, append = false) => {
+    if (append) {
+      setLoadingMoreSuggestions(true)
+    } else {
+      setLoadingExplore(true)
+      setGptSuggestions([])
+      // Reset categories only for initial load
+      setCategories([])
+      setLastFetchTriggerIndex(-1)
+      setStableDisplayPlaces([])
+      setIsInitialLoad(true)
+    }
     
     try {
       const response = await fetch('/api/explore', {
@@ -824,53 +924,89 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           itineraryId,
-          dayId
+          dayId,
+          excludeExisting: append // Tell API to exclude already suggested places
         })
       })
 
       if (response.ok) {
         const data = await response.json()
         
-        // Set GPT suggestions
-        setGptSuggestions(data.suggestions || [])
-        
-        // Store place metadata
-        if (data.placeMetadata) {
-          const metadataMap = new Map<string, any>()
-          Object.keys(data.placeMetadata).forEach(placeId => {
-            metadataMap.set(placeId, data.placeMetadata[placeId])
-          })
-          setPlaceMetadata(metadataMap)
-        }
-        
-        // Update categories with places - convert to simple format for immersive view
-        const newCategories: any[] = []
-        if (data.places) {
-          Object.keys(data.places).forEach(categoryId => {
-            newCategories.push({
-              id: categoryId,
-              places: data.places[categoryId] || []
+        if (append) {
+          // Append new suggestions to existing ones
+          setGptSuggestions(prev => [...prev, ...(data.suggestions || [])])
+          
+          // Merge place metadata
+          if (data.placeMetadata) {
+            setPlaceMetadata(prev => {
+              const newMap = new Map(prev)
+              Object.keys(data.placeMetadata).forEach(placeId => {
+                newMap.set(placeId, data.placeMetadata[placeId])
+              })
+              return newMap
             })
-          })
-        }
-        setCategories(newCategories)
-        
-        // Reset place index when new places are loaded
-        setCurrentPlaceIndex(0)
-        setCurrentImageIndex(0)
-        
-        // Clear enhanced places cache when new places are loaded
-        setEnhancedPlaces(new Map())
-        
-        // Start tracking first place if available
-        const firstPlace = newCategories.length > 0 && newCategories[0].places && newCategories[0].places.length > 0
-          ? newCategories[0].places[0]
-          : null
-        if (firstPlace) {
-          const metadata = data.placeMetadata?.[firstPlace.place_id]
-          setTimeout(() => {
-            startPlaceView(firstPlace.place_id, firstPlace.name, 0, metadata)
-          }, 100) // Small delay to ensure state is updated
+          }
+          
+          // Append new places to existing categories
+          if (data.places) {
+            setCategories(prev => {
+              const updatedCategories = [...prev]
+              Object.keys(data.places).forEach(categoryId => {
+                const existingCategory = updatedCategories.find(cat => cat.id === categoryId)
+                if (existingCategory) {
+                  existingCategory.places = [...existingCategory.places, ...(data.places[categoryId] || [])]
+                } else {
+                  updatedCategories.push({
+                    id: categoryId,
+                    places: data.places[categoryId] || []
+                  })
+                }
+              })
+              return updatedCategories
+            })
+          }
+        } else {
+          // Initial load - replace everything
+          setGptSuggestions(data.suggestions || [])
+          
+          // Store place metadata
+          if (data.placeMetadata) {
+            const metadataMap = new Map<string, any>()
+            Object.keys(data.placeMetadata).forEach(placeId => {
+              metadataMap.set(placeId, data.placeMetadata[placeId])
+            })
+            setPlaceMetadata(metadataMap)
+          }
+          
+          // Update categories with places - convert to simple format for immersive view
+          const newCategories: any[] = []
+          if (data.places) {
+            Object.keys(data.places).forEach(categoryId => {
+              newCategories.push({
+                id: categoryId,
+                places: data.places[categoryId] || []
+              })
+            })
+          }
+          setCategories(newCategories)
+          
+          // Reset place index when new places are loaded
+          setCurrentPlaceIndex(0)
+          setCurrentImageIndex(0)
+          
+          // Clear enhanced places cache when new places are loaded
+          setEnhancedPlaces(new Map())
+          
+          // Start tracking first place if available
+          const firstPlace = newCategories.length > 0 && newCategories[0].places && newCategories[0].places.length > 0
+            ? newCategories[0].places[0]
+            : null
+          if (firstPlace) {
+            const metadata = data.placeMetadata?.[firstPlace.place_id]
+            setTimeout(() => {
+              startPlaceView(firstPlace.place_id, firstPlace.name, 0, metadata)
+            }, 100) // Small delay to ensure state is updated
+          }
         }
         
       } else {
@@ -879,9 +1015,13 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     } catch (error) {
       console.error('Error exploring places:', error)
     } finally {
-      setLoadingExplore(false)
+      if (append) {
+        setLoadingMoreSuggestions(false)
+      } else {
+        setLoadingExplore(false)
+      }
     }
-  }
+  }, [startPlaceView])
 
   const handleDayChange = (dayId: string) => {
     setSelectedDay(dayId)
@@ -1054,10 +1194,16 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
       {/* Progress Indicator - Fixed Position */}
       {!loadingExplore && allDisplayPlaces.length > 0 && (
-        <div className="absolute top-20 right-4 z-30">
+        <div className="absolute top-20 right-4 z-30 flex flex-col gap-2">
           <div className="bg-black bg-opacity-60 backdrop-blur-sm rounded-full px-3 py-1 text-white text-sm border border-white/20" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
             {currentPlaceIndex + 1} / {allDisplayPlaces.length}
           </div>
+          {loadingMoreSuggestions && (
+            <div className="bg-black bg-opacity-60 backdrop-blur-sm rounded-full px-3 py-1 text-white text-xs border border-white/20 flex items-center gap-2" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Finding more...
+            </div>
+          )}
         </div>
       )}
 

@@ -5,11 +5,10 @@ import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { 
   searchText, 
-  searchNearby, 
   geocodeAddress, 
   convertLegacyPlace 
 } from '@/lib/google-maps-new'
-import { saveChatGPTRequest, saveChatGPTResponse } from '@/lib/chatgpt-cache'
+import { saveChatGPTConversation } from '@/lib/chatgpt-cache'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -17,8 +16,6 @@ const openai = new OpenAI({
 
 // Cost optimization configuration
 const GPT_SUGGESTIONS_COUNT = 10
-const ENABLE_LIMITED_CATEGORIES = false
-const LIMITED_CATEGORIES = ['restaurants', 'attractions', 'cafes', 'bars', 'shopping', 'nature']
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { itineraryId, dayId } = await request.json()
+    const { itineraryId, dayId, excludeExisting, currentSuggestions } = await request.json()
 
     if (!itineraryId) {
       return NextResponse.json({ error: 'Itinerary ID is required' }, { status: 400 })
@@ -127,6 +124,30 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Get existing GPT suggestions if we need to exclude them
+    let existingGptSuggestions: string[] = []
+    if (excludeExisting) {
+      const existingActivities = await prisma.userActivity.findMany({
+        where: {
+          userId: session.user.id,
+          itineraryId: itineraryId,
+          isGptSuggestion: true
+        },
+        select: {
+          placeName: true
+        },
+        distinct: ['placeName']
+      })
+      existingGptSuggestions = existingActivities.map(activity => activity.placeName)
+    }
+
+    // Combine database suggestions with current session suggestions to avoid all duplicates
+    const allExistingSuggestions = new Set([
+      ...existingGptSuggestions,
+      ...(currentSuggestions || [])
+    ])
+    const existingSuggestionsList = Array.from(allExistingSuggestions)
+
     // Build context for GPT
     const tripDuration = Math.ceil(
       (new Date(itinerary.endDate).getTime() - new Date(itinerary.startDate).getTime()) / (1000 * 60 * 60 * 24)
@@ -178,8 +199,6 @@ export async function POST(request: NextRequest) {
       // Get latest 50 activities with detailed analysis
       const latest50Activities = userActivities.slice(0, 50)
       const gptSuggestedPlaces = latest50Activities.filter(a => a.isGptSuggestion)
-      const nearbySearchPlaces = latest50Activities.filter(a => a.searchSource === 'nearby_search')
-      const textSearchPlaces = latest50Activities.filter(a => a.searchSource === 'text_search')
       
       // Analyze engagement by source
       const gptEngagement = gptSuggestedPlaces.length > 0 ? {
@@ -215,10 +234,6 @@ export async function POST(request: NextRequest) {
         .sort((a, b) => (b.avgViewTime + b.wishlistRate * 1000 + b.avgImageSlides * 100) - (a.avgViewTime + a.wishlistRate * 1000 + a.avgImageSlides * 100))
         .slice(0, 5)
 
-      // Identify browsing patterns
-      const recentWishlistAdds = latest50Activities.filter(a => a.addedToWishlist).slice(0, 10)
-      const quickDismissals = latest50Activities.filter(a => a.totalViewTime && a.totalViewTime < 3000 && a.imageSlides < 2).slice(0, 10)
-      const deepEngagements = latest50Activities.filter(a => a.totalViewTime && a.totalViewTime > 15000).slice(0, 10)
 
       prompt += `\n\nMy Browsing Behavior Analysis:
 - I have viewed ${totalActivities} places while exploring
@@ -285,16 +300,25 @@ IMPORTANT PERSONALIZATION INSTRUCTIONS:
 ${wishlistItems.length > 0 ? `- Consider that I've shown interest in: ${wishlistItems.map(item => item.placeName).join(', ')}. Suggest similar places or complementary experiences.` : ''}
 ${userActivities.length > 0 ? `- Based on my browsing patterns, I tend to ${userActivities.filter(a => a.addedToWishlist).length / userActivities.length > 0.3 ? 'save many places I find interesting' : 'be selective about places I save'}. ${Math.round(userActivities.reduce((sum, a) => sum + a.imageSlides, 0) / userActivities.length) > 2 ? 'I like to explore multiple images of places.' : 'I tend to look at fewer images per place.'}` : ''}
 - Avoid suggesting places I've already added to my wishlist
+${existingSuggestionsList.length > 0 ? `- CRITICAL: Do NOT suggest these places I've already been shown: ${existingSuggestionsList.join(', ')}. I need completely NEW suggestions.` : ''}
 - Focus on highly-rated, popular places that align with my demonstrated interests
 - Include both must-see landmarks and hidden gems
 - Prioritize places that complement my planned activities and accommodation locations
 
-Return only the place names, one per line, without numbers or bullet points.`
+Return exactly ${GPT_SUGGESTIONS_COUNT} suggestions in this format:
+PLACE_NAME|CATEGORY
 
-    // Get GPT suggestions
-    let gptSuggestions: string[] = []
-    let requestTimestamp: string = ''
-    
+Where CATEGORY should be one of: restaurant, cafe, bar, attraction, museum, shopping, nature, culture, entertainment, nightlife
+
+Example:
+Blue Bottle Coffee|cafe
+Golden Gate Bridge|attraction
+Mission Dolores Park|nature
+
+Only return the place name and category pairs, one per line, without numbers or additional text.`
+
+    // Get GPT suggestions with categories
+    let gptSuggestions: Array<{ name: string; category: string }> = []
     try {
       const messages = [
         {
@@ -307,14 +331,6 @@ Return only the place names, one per line, without numbers or bullet points.`
         }
       ]
 
-      // Cache the request
-      requestTimestamp = await saveChatGPTRequest(
-        itineraryId, 
-        messages, 
-        'gpt-4o-mini',
-        { maxTokens: 800, temperature: 0.7 }
-      )
-
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages,
@@ -322,23 +338,37 @@ Return only the place names, one per line, without numbers or bullet points.`
         temperature: 0.7,
       })
 
-      // Cache the response
-      await saveChatGPTResponse(itineraryId, requestTimestamp, completion)
-
       const response = completion.choices[0]?.message?.content || ''
-      gptSuggestions = response
+
+      // Cache the conversation (prompt and response)
+      await saveChatGPTConversation(itineraryId, prompt, response)
+      
+      // Parse the structured response (PLACE_NAME|CATEGORY format)
+      const suggestions = response
         .split('\n')
         .filter(line => line.trim())
-        .map(line => line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '').trim())
-        .filter(line => line.length > 0)
+        .map(line => line.trim())
+        .filter(line => line.includes('|'))
+        .map(line => {
+          const [name, category] = line.split('|').map(part => part.trim())
+          return { name, category }
+        })
+        .filter(suggestion => suggestion.name && suggestion.category)
+        .slice(0, GPT_SUGGESTIONS_COUNT) // Ensure we don't exceed the configured max
+
+      // Randomize the order of suggestions using Fisher-Yates shuffle
+      for (let i = suggestions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [suggestions[i], suggestions[j]] = [suggestions[j], suggestions[i]]
+      }
+
+      gptSuggestions = suggestions
 
     } catch (gptError) {
       console.error('GPT API error:', gptError)
       
-      // Cache the error response
-      if (requestTimestamp) {
-        await saveChatGPTResponse(itineraryId, requestTimestamp, null, `${gptError}`)
-      }
+      // Cache the error
+      await saveChatGPTConversation(itineraryId, prompt, '', `${gptError}`)
       
       // Continue without GPT suggestions if API fails
     }
@@ -358,10 +388,10 @@ Return only the place names, one per line, without numbers or bullet points.`
     const allPlaces: any[] = []
     const placeMetadata = new Map<string, { isGptSuggestion: boolean, gptCategory?: string, searchSource: string }>()
     
-    // Search for GPT suggestions using Text Search
+    // Search for GPT suggestions using Text Search - this is now our only source
     for (let i = 0; i < gptSuggestions.length; i++) {
       const suggestion = gptSuggestions[i]
-      const places = await searchText(`${suggestion} ${itinerary.destination}`, {
+      const places = await searchText(`${suggestion.name} ${itinerary.destination}`, {
         maxResults: 1,
         locationBias: { ...destinationCoords, radius: 50000 },
         usePreferred: false // Use basic fields for suggestions
@@ -371,88 +401,16 @@ Return only the place names, one per line, without numbers or bullet points.`
         const convertedPlace = convertLegacyPlace(places[0])
         allPlaces.push(convertedPlace)
         
-        // Determine category based on suggestion context or place types
-        let category = 'general'
-        if (convertedPlace.types) {
-          if (convertedPlace.types.some((t: string) => ['restaurant', 'food'].includes(t))) {
-            category = 'restaurant'
-          } else if (convertedPlace.types.some((t: string) => ['cafe', 'coffee_shop'].includes(t))) {
-            category = 'cafe'
-          } else if (convertedPlace.types.some((t: string) => ['bar', 'night_club'].includes(t))) {
-            category = 'bar'
-          } else if (convertedPlace.types.some((t: string) => ['tourist_attraction', 'museum'].includes(t))) {
-            category = 'attraction'
-          } else if (convertedPlace.types.some((t: string) => ['shopping_mall', 'store'].includes(t))) {
-            category = 'shopping'
-          } else if (convertedPlace.types.some((t: string) => ['park', 'natural_feature'].includes(t))) {
-            category = 'nature'
-          }
-        }
-        
+        // Use the ChatGPT-determined category directly
         placeMetadata.set(convertedPlace.place_id, {
           isGptSuggestion: true,
-          gptCategory: category,
+          gptCategory: suggestion.category,
           searchSource: 'gpt'
         })
       }
     }
     
-    // Category-based searches using Nearby Search (more cost-effective)
-    const nearbySearchTypes = [
-      'restaurant',
-      'cafe', 
-      'bar',
-      'park',
-      'museum',
-      'shopping_mall'
-    ]
-    
-    for (const type of nearbySearchTypes) {
-      const places = await searchNearby(destinationCoords, {
-        radius: 15000,
-        types: [type],
-        maxResults: 12,
-        usePreferred: false // Use basic fields for initial search
-      })
-      
-      const convertedPlaces = places.map(place => convertLegacyPlace(place))
-      convertedPlaces.forEach(place => {
-        if (!placeMetadata.has(place.place_id)) {
-          placeMetadata.set(place.place_id, {
-            isGptSuggestion: false,
-            searchSource: 'nearby_search'
-          })
-        }
-      })
-      allPlaces.push(...convertedPlaces)
-    }
-    
-    // Additional text searches for specific categories
-    const textSearchQueries = [
-      `tourist attractions in ${itinerary.destination}`,
-      `nightlife in ${itinerary.destination}`
-    ]
-    
-    for (const query of textSearchQueries) {
-      const places = await searchText(query, {
-        maxResults: 8,
-        locationBias: { ...destinationCoords, radius: 50000 },
-        usePreferred: false
-      })
-      
-      const convertedPlaces = places.map(place => convertLegacyPlace(place))
-      convertedPlaces.forEach(place => {
-        if (!placeMetadata.has(place.place_id)) {
-          placeMetadata.set(place.place_id, {
-            isGptSuggestion: false,
-            searchSource: 'text_search'
-          })
-        }
-      })
-      allPlaces.push(...convertedPlaces)
-    }
-    
-    // Remove duplicates based on place_id
+    // Remove duplicates based on place_id (though unlikely with GPT suggestions only)
     const uniquePlaces = allPlaces.reduce((acc: any[], place) => {
       if (!acc.find((p: any) => p.place_id === place.place_id)) {
         acc.push(place)
@@ -460,51 +418,19 @@ Return only the place names, one per line, without numbers or bullet points.`
       return acc
     }, [])
 
-    // Categorize places
-    const allCategoryMappings = {
-      restaurants: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['restaurant', 'food', 'meal_takeaway'].includes(type))
-      ),
-      cafes: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['cafe', 'coffee_shop', 'bakery'].includes(type))
-      ),
-      bars: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['bar', 'night_club', 'pub'].includes(type))
-      ),
-      attractions: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['tourist_attraction', 'museum', 'amusement_park', 'zoo', 'aquarium'].includes(type))
-      ),
-      arts: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['art_gallery', 'library', 'theater'].includes(type))
-      ),
-      entertainment: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['movie_theater', 'bowling_alley', 'casino'].includes(type))
-      ),
-      wellness: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['spa', 'gym', 'beauty_salon'].includes(type))
-      ),
-      shopping: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['shopping_mall', 'store', 'market', 'clothing_store'].includes(type))
-      ),
-      nature: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['park', 'natural_feature', 'hiking_area', 'campground'].includes(type))
-      ),
-      culture: uniquePlaces.filter((place: any) => 
-        place.types?.some((type: string) => ['church', 'hindu_temple', 'mosque', 'synagogue', 'city_hall', 'monument'].includes(type))
-      ),
-    }
-    
-    // Filter categories based on configuration
+    // Categorize places based on ChatGPT categories instead of Google Place types
     const categorizedPlaces: any = {}
-    if (ENABLE_LIMITED_CATEGORIES) {
-      LIMITED_CATEGORIES.forEach(categoryId => {
-        if (allCategoryMappings[categoryId as keyof typeof allCategoryMappings]) {
-          categorizedPlaces[categoryId] = allCategoryMappings[categoryId as keyof typeof allCategoryMappings]
-        }
-      })
-    } else {
-      Object.assign(categorizedPlaces, allCategoryMappings)
-    }
+    
+    // Group places by their ChatGPT-determined categories
+    uniquePlaces.forEach((place: any) => {
+      const metadata = placeMetadata.get(place.place_id)
+      const category = metadata?.gptCategory || 'general'
+      
+      if (!categorizedPlaces[category]) {
+        categorizedPlaces[category] = []
+      }
+      categorizedPlaces[category].push(place)
+    })
 
     // Convert metadata Map to plain object for response
     const metadataObject: { [key: string]: any } = {}

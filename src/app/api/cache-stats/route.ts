@@ -33,8 +33,7 @@ export async function GET() {
       },
       chatgpt: {
         totalTrips: chatgptStats.totalTrips,
-        totalRequests: chatgptStats.totalRequests,
-        totalResponses: chatgptStats.totalResponses,
+        totalConversations: chatgptStats.totalConversations,
         totalFiles: chatgptStats.totalFiles,
         tripBreakdown: chatgptStats.tripStats
       },
