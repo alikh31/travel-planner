@@ -46,8 +46,6 @@ interface TripHeaderProps {
 
 export default function TripHeader({
   itinerary,
-  session,
-  isAdmin,
   isRefreshing = false,
   currentPage,
   backUrl = "/"

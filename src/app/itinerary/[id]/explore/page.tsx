@@ -333,7 +333,7 @@ interface Place {
 
 
 export default function ExplorePage({ params }: { params: Promise<{ id: string }> }) {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const resolvedParams = use(params)
   
@@ -341,7 +341,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   
   const [itinerary, setItinerary] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [gptSuggestions, setGptSuggestions] = useState<string[]>([])
   const [loadingExplore, setLoadingExplore] = useState(false)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [currentPlaceIndex, setCurrentPlaceIndex] = useState(0)
@@ -364,7 +363,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   // Initialize activity tracking
-  const { startPlaceView, endPlaceView, trackImageSlide, trackWishlistAdd } = useActivityTracking({
+  const { startPlaceView, trackImageSlide, trackWishlistAdd } = useActivityTracking({
     itineraryId: resolvedParams.id,
     sessionId,
     dayId: selectedDay || undefined
@@ -459,19 +458,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     }
   }, [enhancedPlaces, loadingEnhancedPlace])
 
-  // Enhanced place data retrieval
-  const getEnhancedPlace = useCallback((place: Place) => {
-    const enhanced = enhancedPlaces.get(place.place_id)
-    if (enhanced) {
-      return {
-        ...place,
-        photos: enhanced.photos && enhanced.photos.length > 0 ? enhanced.photos : place.photos,
-        editorial_summary: enhanced.editorial_summary,
-        reviews: enhanced.reviews
-      }
-    }
-    return place
-  }, [enhancedPlaces])
 
   // Fetch enhanced details when place changes
   useEffect(() => {
@@ -756,17 +742,6 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       }
     }
 
-    // Add horizontal scroll event handling for image containers
-    const handleImageScroll = (e: WheelEvent) => {
-      const target = e.target as HTMLElement
-      const imageContainer = target.closest('.image-scroll-container')
-      
-      if (imageContainer && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        // Let the horizontal scroll happen naturally for image navigation
-        // The scrollTo in navigateToImage will handle smooth scrolling
-        return
-      }
-    }
 
     const handleTouchStart = (e: TouchEvent) => {
       if (isScrolling || isImageScrolling) return
@@ -1028,38 +1003,9 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
     }
   }, [startPlaceView])
 
-  const handleDayChange = (dayId: string) => {
-    setSelectedDay(dayId)
-    explorePlaces(resolvedParams.id, dayId)
-  }
 
 
-  const getPhotoUrl = useCallback((photoReference?: string) => {
-    if (!photoReference) {
-      console.log('No photo reference provided')
-      return null
-    }
-    
-    // Check cache first
-    if (imageUrlCache.has(photoReference)) {
-      return imageUrlCache.get(photoReference)
-    }
-    
-    // Determine if this is a new Places API photo name or legacy photo reference
-    const isNewAPIPhotoName = photoReference.startsWith('places/') && photoReference.includes('/photos/')
-    
-    // Use backend API for images - it handles caching and both legacy/new formats
-    const url = `/api/images?name=${encodeURIComponent(photoReference)}&maxWidth=1600${isNewAPIPhotoName ? '' : '&legacy=true'}`
-    
-    // Cache the URL
-    imageUrlCache.set(photoReference, url)
-    
-    return url
-  }, [imageUrlCache])
 
-  const handleImageLoad = useCallback((imageKey: string) => {
-    setLoadedImages(prev => new Set(prev).add(imageKey))
-  }, [])
 
   const isImageLoaded = useCallback((imageKey: string) => {
     return loadedImages.has(imageKey)

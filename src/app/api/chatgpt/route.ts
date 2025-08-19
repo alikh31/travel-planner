@@ -82,7 +82,7 @@ export async function GET() {
       openai_configured: hasApiKey,
       openai_model: model
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Health check failed' },
       { status: 500 }

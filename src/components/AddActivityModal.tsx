@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import LocationSearch from './LocationSearch'
 
 interface WishlistItem {
@@ -112,7 +112,7 @@ export default function AddActivityModal({
     if (isOpen && itineraryId) {
       fetchWishlistItems()
     }
-  }, [isOpen, itineraryId])
+  }, [isOpen, itineraryId, fetchWishlistItems])
 
   // Set suggested start time when modal opens
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function AddActivityModal({
     }
   }, [isOpen, suggestedStartTime, newActivity.startTime, setNewActivity])
 
-  const fetchWishlistItems = async () => {
+  const fetchWishlistItems = useCallback(async () => {
     setLoading(true)
     try {
       // Fetch both wishlist items and itinerary data in parallel
@@ -209,7 +209,7 @@ export default function AddActivityModal({
     } finally {
       setLoading(false)
     }
-  }
+  }, [itineraryId, newActivity.startTime, previousActivityLocation])
 
   const handleWishlistSelection = (item: WishlistItem) => {
     setSelectedWishlistItem(item)

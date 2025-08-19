@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -98,9 +98,9 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     fetchItinerary()
-  }, [resolvedParams.id])
+  }, [resolvedParams.id, fetchItinerary])
 
-  const fetchItinerary = async () => {
+  const fetchItinerary = useCallback(async () => {
     try {
       const response = await fetch(`/api/itineraries/${resolvedParams.id}`)
       if (response.ok) {
@@ -124,7 +124,7 @@ export default function AccommodationPage({ params }: { params: Promise<{ id: st
     } finally {
       setLoading(false)
     }
-  }
+  }, [resolvedParams.id])
 
 
   const handleAddAccommodation = () => {

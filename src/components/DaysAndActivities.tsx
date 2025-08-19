@@ -57,7 +57,6 @@ export default function DaysAndActivities({
   isAdmin,
   getAccommodationForDate,
   getAccommodationStatusForDate,
-  getTimeWithOffset,
   getEndTime,
   TimeGap,
   openDropdown,
@@ -82,7 +81,7 @@ export default function DaysAndActivities({
         }
       }
     }
-  }, [selectedDay]) // Only depend on selectedDay changes, not itinerary.days
+  }, [selectedDay, itinerary?.days])
 
   const DayButton = ({ day, index }: { day: any, index: number }) => {
     const accommodationStatus = getAccommodationStatusForDate(day.date)
