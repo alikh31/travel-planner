@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession, signIn } from 'next-auth/react'
-import { PlusCircle, MapPin, Users, Calendar } from 'lucide-react'
+import { PlusCircle, MapPin, Users, Calendar, MoreVertical, Edit3, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import UserMenu from '@/components/UserMenu'
@@ -15,6 +15,7 @@ interface Itinerary {
   destination: string
   startDate: string
   endDate: string
+  createdBy: string
   members: Array<{
     user: {
       id: string
@@ -44,6 +45,9 @@ export default function Home() {
   const { data: session, status } = useSession()
   const [itineraries, setItineraries] = useState<Itinerary[]>([])
   const [loading, setLoading] = useState(true)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const [editingItinerary, setEditingItinerary] = useState<Itinerary | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
 
   useEffect(() => {
     if (session) {
@@ -75,6 +79,59 @@ export default function Home() {
       setLoading(false)
     }
   }
+
+  const handleEditItinerary = async (updatedData: Partial<Itinerary>) => {
+    if (!editingItinerary) return
+
+    try {
+      const response = await fetch(`/api/itineraries/${editingItinerary.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+      })
+
+      if (response.ok) {
+        await fetchItineraries()
+        setEditingItinerary(null)
+      } else {
+        console.error('Failed to update itinerary')
+      }
+    } catch (error) {
+      console.error('Error updating itinerary:', error)
+    }
+  }
+
+  const handleDeleteItinerary = async (itineraryId: string) => {
+    try {
+      const response = await fetch(`/api/itineraries/${itineraryId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        await fetchItineraries()
+        setShowDeleteConfirm(null)
+      } else {
+        console.error('Failed to delete itinerary')
+      }
+    } catch (error) {
+      console.error('Error deleting itinerary:', error)
+    }
+  }
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (!target.closest('[data-dropdown]')) {
+        setOpenDropdown(null)
+      }
+    }
+
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
 
   if (status === 'loading') {
     return (
@@ -222,33 +279,86 @@ export default function Home() {
                         // Get first 3 activities for display (if needed for future use)
                         // const displayActivities = allActivities.slice(0, 3)
                         
+                        const isCreator = session?.user?.id === itinerary.createdBy
+                        
                         return (
-                          <Link
+                          <div
                             key={itinerary.id}
-                            href={`/itinerary/${itinerary.id}`}
-                            className="bg-white rounded-lg shadow-sm border border-stone-gray-200 overflow-hidden hover:shadow-md transition-shadow group"
+                            className="bg-white rounded-lg shadow-sm border border-stone-gray-200 overflow-hidden hover:shadow-md transition-shadow group relative"
                           >
-                            {/* Image Section */}
-                            <TravelCardImages 
-                              activities={allActivities}
-                              destination={itinerary.destination}
-                              itineraryId={itinerary.id}
-                              totalActivities={totalActivities}
-                            />
+                            {/* Image Section - Clickable */}
+                            <Link href={`/itinerary/${itinerary.id}`}>
+                              <TravelCardImages 
+                                activities={allActivities}
+                                destination={itinerary.destination}
+                                itineraryId={itinerary.id}
+                                totalActivities={totalActivities}
+                              />
+                            </Link>
                             
                             {/* Content Section */}
                             <div className="p-6">
                               <div className="mb-4">
-                                <h4 className="text-lg font-semibold text-stone-gray-900 mb-1">
-                                  {itinerary.title}
-                                </h4>
-                                <div className="flex items-center text-sm text-stone-gray-600 mb-2">
-                                  <MapPin className="h-4 w-4 mr-1" />
-                                  {itinerary.destination}
-                                </div>
-                                <div className="flex items-center text-sm text-stone-gray-600">
-                                  <Calendar className="h-4 w-4 mr-1" />
-                                  {format(new Date(itinerary.startDate), 'MMM d')} - {format(new Date(itinerary.endDate), 'MMM d, yyyy')}
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <Link href={`/itinerary/${itinerary.id}`}>
+                                      <h4 className="text-lg font-semibold text-stone-gray-900 mb-1 hover:text-ocean-blue-600 transition-colors">
+                                        {itinerary.title}
+                                      </h4>
+                                    </Link>
+                                    <div className="flex items-center text-sm text-stone-gray-600 mb-2">
+                                      <MapPin className="h-4 w-4 mr-1" />
+                                      {itinerary.destination}
+                                    </div>
+                                    <div className="flex items-center text-sm text-stone-gray-600">
+                                      <Calendar className="h-4 w-4 mr-1" />
+                                      {format(new Date(itinerary.startDate), 'MMM d')} - {format(new Date(itinerary.endDate), 'MMM d, yyyy')}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Dropdown Menu - Only for creators */}
+                                  {isCreator && (
+                                    <div className="relative flex-shrink-0 ml-2" data-dropdown>
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          setOpenDropdown(openDropdown === itinerary.id ? null : itinerary.id)
+                                        }}
+                                        className="p-2 text-stone-gray-400 hover:text-stone-gray-600 hover:bg-stone-gray-50 rounded-lg transition-colors"
+                                        title="Trip options"
+                                      >
+                                        <MoreVertical className="h-4 w-4" />
+                                      </button>
+                                      
+                                      {/* Dropdown Menu */}
+                                      {openDropdown === itinerary.id && (
+                                        <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-stone-gray-200 py-1 z-10">
+                                          <button
+                                            onClick={(e) => {
+                                              e.preventDefault()
+                                              setEditingItinerary(itinerary)
+                                              setOpenDropdown(null)
+                                            }}
+                                            className="w-full flex items-center px-3 py-2 text-sm text-stone-gray-700 hover:bg-stone-gray-50 transition-colors"
+                                          >
+                                            <Edit3 className="h-4 w-4 mr-2" />
+                                            Edit Trip
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.preventDefault()
+                                              setShowDeleteConfirm(itinerary.id)
+                                              setOpenDropdown(null)
+                                            }}
+                                            className="w-full flex items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Delete Trip
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               
@@ -268,7 +378,7 @@ export default function Home() {
                                 </div>
                               </div>
                             </div>
-                          </Link>
+                          </div>
                         )
                       })}
                     </div>
@@ -279,6 +389,186 @@ export default function Home() {
           </>
         )}
       </main>
+
+      {/* Edit Trip Modal */}
+      {editingItinerary && (
+        <EditTripModal
+          itinerary={editingItinerary}
+          onSave={handleEditItinerary}
+          onClose={() => setEditingItinerary(null)}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <DeleteConfirmModal
+          itineraryId={showDeleteConfirm}
+          itineraryTitle={itineraries.find(i => i.id === showDeleteConfirm)?.title || ''}
+          onConfirm={handleDeleteItinerary}
+          onClose={() => setShowDeleteConfirm(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Edit Trip Modal Component
+function EditTripModal({ itinerary, onSave, onClose }: {
+  itinerary: Itinerary
+  onSave: (data: Partial<Itinerary>) => void
+  onClose: () => void
+}) {
+  const [title, setTitle] = useState(itinerary.title)
+  const [description, setDescription] = useState(itinerary.description || '')
+  const [destination, setDestination] = useState(itinerary.destination)
+  const [startDate, setStartDate] = useState(itinerary.startDate.split('T')[0])
+  const [endDate, setEndDate] = useState(itinerary.endDate.split('T')[0])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!title || !destination || !startDate || !endDate) {
+      return
+    }
+
+    if (new Date(startDate) >= new Date(endDate)) {
+      alert('End date must be after start date')
+      return
+    }
+
+    onSave({
+      title,
+      description,
+      destination,
+      startDate,
+      endDate,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit Trip</h3>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ocean-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ocean-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Destination
+            </label>
+            <input
+              type="text"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ocean-blue-500"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ocean-blue-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ocean-blue-500"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-ocean-blue-600 text-white rounded-lg hover:bg-ocean-blue-700 transition-colors"
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Delete Confirmation Modal Component
+function DeleteConfirmModal({ itineraryId, itineraryTitle, onConfirm, onClose }: {
+  itineraryId: string
+  itineraryTitle: string
+  onConfirm: (id: string) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Trip</h3>
+        
+        <p className="text-gray-600 mb-6">
+          Are you sure you want to delete <strong>&ldquo;{itineraryTitle}&rdquo;</strong>? This action cannot be undone and will delete all activities, accommodations, and other trip data.
+        </p>
+
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(itineraryId)}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Delete Trip
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

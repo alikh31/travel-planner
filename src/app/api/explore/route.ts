@@ -9,6 +9,7 @@ import {
   convertLegacyPlace,
   getPlaceDetails
 } from '@/lib/google-maps-new'
+import { getDayDate } from '@/lib/date-utils'
 import { saveChatGPTConversation } from '@/lib/chatgpt-cache'
 
 const openai = new OpenAI({
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
             },
           },
           orderBy: {
-            date: 'asc',
+            dayIndex: 'asc',
           },
         },
       },
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
         title: activity.title,
         description: activity.description,
         location: activity.location,
-        day: day.date
+        day: getDayDate(itinerary.startDate, day.dayIndex || 0).toISOString()
       }))
     )
 
@@ -170,7 +171,8 @@ export async function POST(request: NextRequest) {
 
     if (targetDay) {
       const dayActivities = targetDay.activities
-      prompt += ` I'm specifically looking for recommendations for ${new Date(targetDay.date).toLocaleDateString()}.`
+      const targetDayDate = getDayDate(itinerary.startDate, targetDay.dayIndex || 0)
+      prompt += ` I'm specifically looking for recommendations for ${targetDayDate.toLocaleDateString()}.`
       if (dayActivities.length > 0) {
         prompt += ` On this day I have planned: ${dayActivities.map(a => a.title).join(', ')}.`
       }
@@ -197,8 +199,8 @@ export async function POST(request: NextRequest) {
         .slice(0, 10)
         .map(a => a.placeName)
 
-      // Get latest 50 activities with detailed analysis
-      const latest50Activities = userActivities.slice(0, 50)
+      // Get latest 200 activities with detailed analysis
+      const latest50Activities = userActivities.slice(0, 200)
       const gptSuggestedPlaces = latest50Activities.filter(a => a.isGptSuggestion)
       
       // Analyze engagement by source
@@ -483,7 +485,7 @@ CRITICAL: Follow this format exactly. Do not deviate.`
       },
       day: targetDay ? {
         id: targetDay.id,
-        date: targetDay.date,
+        date: getDayDate(itinerary.startDate, targetDay.dayIndex || 0).toISOString(),
         activities: targetDay.activities
       } : null
     })
