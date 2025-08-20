@@ -91,9 +91,9 @@ const ImmersivePlaceCard = memo(({
     <div className={`relative w-full transition-all duration-300 ${
       isNext 
         ? 'h-20 md:h-32 opacity-70 transform scale-95' 
-        : 'h-screen min-h-screen'
+        : ''
     }`}
-    style={!isNext ? { height: '100vh', minHeight: '100dvh' } : {}}>
+    style={!isNext ? { height: '100dvh', minHeight: '100dvh' } : {}}>
       {/* Image Carousel Container */}
       {hasPhotos ? (
         <div className="absolute inset-0 overflow-hidden">
@@ -1013,7 +1013,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cloud-white flex items-center justify-center">
+      <div className="bg-cloud-white flex items-center justify-center" style={{ height: '100dvh' }}>
         <Loader2 className="h-8 w-8 animate-spin text-sunset-coral-600" />
       </div>
     )
@@ -1021,7 +1021,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
   if (!itinerary) {
     return (
-      <div className="min-h-screen bg-cloud-white flex items-center justify-center">
+      <div className="bg-cloud-white flex items-center justify-center" style={{ height: '100dvh' }}>
         <p className="text-gray-600">Itinerary not found</p>
       </div>
     )
@@ -1032,9 +1032,9 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
   // Immersive full-screen view - this is the only view for explore
   return (
     <div 
-      className="min-h-screen bg-black overflow-hidden"
+      className="bg-black overflow-hidden"
       style={{ 
-        height: '100vh',
+        height: '100dvh',
         minHeight: '100dvh',
         touchAction: 'none', 
         overscrollBehavior: 'none',
@@ -1060,7 +1060,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
       {/* Loading State */}
       {loadingExplore && (
-        <div className="flex items-center justify-center h-screen text-white">
+        <div className="flex items-center justify-center text-white" style={{ height: '100dvh' }}>
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
             <p>Finding amazing places...</p>
@@ -1071,9 +1071,9 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
       {/* Immersive Place Cards - Custom Scroll Container */}
       {!loadingExplore && allDisplayPlaces.length > 0 && (
         <div 
-          className="immersive-scroll-container h-screen overflow-y-scroll z-10 scrollbar-hide"
+          className="immersive-scroll-container overflow-y-scroll z-10 scrollbar-hide"
           style={{ 
-            height: '100vh',
+            height: '100dvh',
             minHeight: '100dvh',
             overscrollBehavior: 'none',
             touchAction: 'pan-y'
@@ -1121,7 +1121,7 @@ export default function ExplorePage({ params }: { params: Promise<{ id: string }
 
       {/* Empty State */}
       {!loadingExplore && allDisplayPlaces.length === 0 && (
-        <div className="flex items-center justify-center h-screen text-white text-center">
+        <div className="flex items-center justify-center text-white text-center" style={{ height: '100dvh' }}>
           <div>
             <Sparkles className="h-16 w-16 mx-auto mb-4 opacity-50" />
             <h2 className="text-xl font-semibold mb-2">No places found</h2>
