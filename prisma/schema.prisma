@@ -120,7 +120,6 @@ model GroupMember {
 model Day {
   id          String @id @default(cuid())
   itineraryId String
-  date        DateTime
   dayIndex    Int @default(0)     // 0-based index (Day 1 = 0, Day 2 = 1, etc.)
   
   itinerary  Itinerary  @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
@@ -261,4 +260,29 @@ model UserActivity {
   
   @@index([userId, sessionId])
   @@index([placeId])
+}
+
+model ApiUsage {
+  id          String   @id @default(cuid())
+  service     String   // e.g., "google-maps", "google-places", "google-geocoding"
+  endpoint    String   // specific API endpoint or operation
+  date        String   // YYYY-MM-DD format for daily tracking
+  count       Int      @default(0)
+  userId      String?  // optional - track per user if needed
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([service, endpoint, date, userId])
+  @@index([service, date])
+}
+
+model ApiConfig {
+  id          String   @id @default(cuid())
+  service     String   @unique // e.g., "google-maps"
+  dailyLimit  Int      @default(2000)
+  enabled     Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

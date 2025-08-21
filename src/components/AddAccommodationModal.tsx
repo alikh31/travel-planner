@@ -3,6 +3,7 @@
 import { useCallback, useEffect } from 'react'
 import { X } from 'lucide-react'
 import LocationSearch from './LocationSearch'
+import { getDayDate } from '@/lib/date-utils'
 
 interface NewAccommodation {
   name: string
@@ -75,9 +76,12 @@ export default function AddAccommodationModal({
     )
     
     // Find the first day without accommodation
-    for (const day of itinerary.days.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())) {
-      if (!accommodationDates.has(day.date)) {
-        return day.date
+    // Since we're using calculated dates based on index, we can just iterate by index
+    for (let i = 0; i < itinerary.days.length; i++) {
+      const dayDate = getDayDate(itinerary.startDate, i)
+      const dayDateStr = dayDate.toISOString().split('T')[0]
+      if (!accommodationDates.has(dayDateStr)) {
+        return dayDateStr
       }
     }
     

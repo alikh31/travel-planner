@@ -70,7 +70,7 @@ export async function GET(
             },
           },
           orderBy: {
-            date: 'asc',
+            dayIndex: 'asc',
           },
         },
       },

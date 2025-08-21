@@ -1,4 +1,5 @@
 import { getCached, setCached, generateCacheKey, CACHE_TTLS } from './cache-manager'
+import { trackGoogleMapsCall, checkGoogleMapsLimit } from './api-usage-tracker'
 
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ''
 const NEW_PLACES_API_BASE = 'https://places.googleapis.com/v1'
@@ -110,6 +111,14 @@ export async function searchText(
   }
   
   try {
+    // Check API limits and track the call
+    const canMakeCall = await checkGoogleMapsLimit('places-text-search')
+    if (!canMakeCall) {
+      throw new Error('Daily API limit exceeded for Google Places text search')
+    }
+    
+    await trackGoogleMapsCall('places-text-search')
+    
     const response = await fetch(`${NEW_PLACES_API_BASE}/places:searchText`, {
       method: 'POST',
       headers: {
@@ -176,6 +185,14 @@ export async function searchNearby(
   }
   
   try {
+    // Check API limits and track the call
+    const canMakeCall = await checkGoogleMapsLimit('places-nearby-search')
+    if (!canMakeCall) {
+      throw new Error('Daily API limit exceeded for Google Places nearby search')
+    }
+    
+    await trackGoogleMapsCall('places-nearby-search')
+    
     const response = await fetch(`${NEW_PLACES_API_BASE}/places:searchNearby`, {
       method: 'POST',
       headers: {
@@ -221,6 +238,14 @@ export async function getPlaceDetails(
   if (cached) return cached
   
   try {
+    // Check API limits and track the call
+    const canMakeCall = await checkGoogleMapsLimit('places-details')
+    if (!canMakeCall) {
+      throw new Error('Daily API limit exceeded for Google Places details')
+    }
+    
+    await trackGoogleMapsCall('places-details')
+    
     const fieldMask = options.usePreferred ? FIELD_MASKS.DETAILS_PREFERRED : FIELD_MASKS.DETAILS_BASIC
     const response = await fetch(`${NEW_PLACES_API_BASE}/places/${placeId}`, {
       method: 'GET',

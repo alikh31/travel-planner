@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { findFirstAvailableTimeSlot } from '@/lib/time-slot-finder'
 import { getPlaceDetails } from '@/lib/google-maps-new'
+import { getDayDate } from '@/lib/date-utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
         })),
         itinerary.days.map(d => ({
           dayIndex: d.dayIndex,
-          date: d.date
+          date: getDayDate(itinerary.startDate, d.dayIndex)
         }))
       )
 
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
           error: 'No available time slots found. Please try manually selecting a time.',
           availableDays: itinerary.days.map(d => ({
             dayIndex: d.dayIndex,
-            date: d.date
+            date: getDayDate(itinerary.startDate, d.dayIndex)
           }))
         }, { status: 400 })
       }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import { useSession } from 'next-auth/react'
+import { getDayDate } from '@/lib/date-utils'
 import { useRouter } from 'next/navigation'
 import { 
   Heart, 
@@ -187,8 +188,8 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
           gptDuration: item.gptDuration || 60,
           existingActivities,
           days: itinerary?.days?.map((day: any, index: number) => ({
-            dayIndex: index,
-            date: day.date
+            dayIndex: day.dayIndex || index,
+            date: getDayDate(itinerary.startDate, day.dayIndex || index)
           })) || []
         })
       })
@@ -300,7 +301,7 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
           existingActivities,
           days: [{
             dayIndex: dayIndex,
-            date: itinerary.days[dayIndex].date
+            date: getDayDate(itinerary.startDate, dayIndex)
           }],
           preferredDayIndex: dayIndex // Force it to find a slot on this specific day
         })
@@ -799,7 +800,7 @@ export default function WishlistPage({ params }: { params: Promise<{ id: string 
                   <option value="">Select a day...</option>
                   {itinerary?.days?.map((day: any, index: number) => (
                     <option key={day.id} value={index}>
-                      Day {index + 1} - {new Date(day.date).toLocaleDateString('en-US', { 
+                      Day {index + 1} - {getDayDate(itinerary.startDate, day.dayIndex || index).toLocaleDateString('en-US', { 
                         weekday: 'short', 
                         month: 'short', 
                         day: 'numeric' 

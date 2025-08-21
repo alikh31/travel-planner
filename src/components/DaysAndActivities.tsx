@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Calendar, Map, Hotel, AlertCircle, AlertTriangle, Compass } from 'lucide-react'
 import AccommodationCard from './AccommodationCard'
 import Commute from './Commute'
+import { getDayDate } from '@/lib/date-utils'
 
 interface DaysAndActivitiesProps {
   itinerary: any
@@ -65,6 +66,9 @@ export default function DaysAndActivities({
 }: DaysAndActivitiesProps) {
   const router = useRouter()
   const scrollRef = useRef<HTMLDivElement>(null)
+  
+  // Calculate current day date for consistent use throughout component
+  const selectedDayDate = selectedDayData ? getDayDate(itinerary.startDate, selectedDayData.dayIndex || 0) : null
 
   // Auto-scroll to selected day in mobile slider
   useEffect(() => {
@@ -84,7 +88,8 @@ export default function DaysAndActivities({
   }, [selectedDay, itinerary?.days])
 
   const DayButton = ({ day, index }: { day: any, index: number }) => {
-    const accommodationStatus = getAccommodationStatusForDate(day.date)
+    const dayDate = getDayDate(itinerary.startDate, day.dayIndex || index)
+    const accommodationStatus = getAccommodationStatusForDate(dayDate)
     
     return (
       <button
@@ -120,7 +125,7 @@ export default function DaysAndActivities({
         </div>
         
         <div className="text-sm text-gray-600 mt-1 md:mt-0 whitespace-nowrap">
-          {format(new Date(day.date), 'MMM d')}
+          {format(dayDate, 'MMM d')}
         </div>
         
         <div className="hidden md:flex items-center justify-between text-xs text-gray-500 mt-1">
@@ -171,9 +176,9 @@ export default function DaysAndActivities({
             <h3 className="text-lg font-semibold text-gray-900">
               {selectedDayData ? `Day ${itinerary.days.findIndex((d: any) => d.id === selectedDay) + 1} Activities` : 'Select a Day'}
             </h3>
-            {selectedDayData && (
+            {selectedDayData && selectedDayDate && (
               <p className="text-sm text-gray-600">
-                {format(new Date(selectedDayData.date), 'EEEE, MMMM d, yyyy')}
+                {format(selectedDayDate, 'EEEE, MMMM d, yyyy')}
               </p>
             )}
           </div>
@@ -220,7 +225,7 @@ export default function DaysAndActivities({
           <div className="space-y-4">
             {/* Start of Day Accommodation Card */}
             {(() => {
-              const accommodation = getAccommodationForDate(selectedDayData.date)
+              const accommodation = getAccommodationForDate(selectedDayDate)
               const firstActivity = selectedDayData.activities[0]
               return accommodation ? (
                 <AccommodationCard
@@ -260,12 +265,12 @@ export default function DaysAndActivities({
                     onAddActivity={(suggestedStartTime?: string) => {
                       setAddActivityContext({
                         suggestedStartTime,
-                        previousLocation: getAccommodationForDate(selectedDayData.date) && 
-                          getAccommodationForDate(selectedDayData.date).locationLat && 
-                          getAccommodationForDate(selectedDayData.date).locationLng
+                        previousLocation: getAccommodationForDate(selectedDayDate) && 
+                          getAccommodationForDate(selectedDayDate).locationLat && 
+                          getAccommodationForDate(selectedDayDate).locationLng
                           ? { 
-                              lat: getAccommodationForDate(selectedDayData.date).locationLat, 
-                              lng: getAccommodationForDate(selectedDayData.date).locationLng 
+                              lat: getAccommodationForDate(selectedDayDate).locationLat, 
+                              lng: getAccommodationForDate(selectedDayDate).locationLng 
                             }
                           : undefined
                       })
@@ -301,7 +306,7 @@ export default function DaysAndActivities({
             )}
 
             {selectedDayData.activities.map((activity: any, index: number) => {
-              const accommodation = getAccommodationForDate(selectedDayData.date)
+              const accommodation = getAccommodationForDate(selectedDayDate)
               const isFirstActivity = index === 0
               const isLastActivity = index === selectedDayData.activities.length - 1
               
@@ -419,7 +424,7 @@ export default function DaysAndActivities({
 
             {/* End of Day Accommodation Card */}
             {(() => {
-              const accommodation = getAccommodationForDate(selectedDayData.date)
+              const accommodation = getAccommodationForDate(selectedDayDate)
               const totalActivities = selectedDayData.activities.length
               return accommodation ? (
                 <AccommodationCard

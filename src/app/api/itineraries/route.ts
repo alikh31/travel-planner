@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { addDays, differenceInDays } from 'date-fns'
+import { differenceInDays } from 'date-fns'
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,11 +60,9 @@ export async function POST(request: NextRequest) {
     const days = []
 
     for (let i = 0; i < dayCount; i++) {
-      const dayDate = addDays(start, i)
       const day = await prisma.day.create({
         data: {
           itineraryId: itinerary.id,
-          date: dayDate,
           dayIndex: i,
         },
       })

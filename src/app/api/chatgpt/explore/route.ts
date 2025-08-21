@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { sendToChatGPT } from '@/lib/chatgpt'
 import { createLocationExplorationPrompt, createLocationRecommendationPrompt } from '@/lib/chatgpt-prompts'
 import { prisma } from '@/lib/prisma'
+import { getDayDate } from '@/lib/date-utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -97,7 +98,8 @@ export async function POST(request: NextRequest) {
     if (itinerary.days && itinerary.days.length > 0) {
       const activityList = itinerary.days.map((day, dayIndex) => {
         if (!day.activities || day.activities.length === 0) {
-          return `Day ${dayIndex + 1} (${new Date(day.date).toLocaleDateString()}): No activities planned`
+          const dayDate = getDayDate(itinerary.startDate, day.dayIndex || dayIndex)
+          return `Day ${dayIndex + 1} (${dayDate.toLocaleDateString()}): No activities planned`
         }
         
         const dayActivities = day.activities.map(activity => {
@@ -110,7 +112,8 @@ export async function POST(request: NextRequest) {
           return `  • ${details.join(' ')}`
         }).join('\n')
         
-        return `Day ${dayIndex + 1} (${new Date(day.date).toLocaleDateString()}):\n${dayActivities}`
+        const dayDate = getDayDate(itinerary.startDate, day.dayIndex || dayIndex)
+        return `Day ${dayIndex + 1} (${dayDate.toLocaleDateString()}):\n${dayActivities}`
       }).join('\n\n')
       activityDetails = activityList
     }

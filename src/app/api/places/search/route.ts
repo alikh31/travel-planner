@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getCached, setCached, generateCacheKey, CACHE_TTLS } from '@/lib/cache-manager'
+import { trackGoogleMapsCall, checkGoogleMapsLimit } from '@/lib/api-usage-tracker'
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +28,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Google Maps API key not configured' }, { status: 500 })
     }
 
+    // Check API usage limits before making the call
+    const canMakeCall = await checkGoogleMapsLimit('places-text-search')
+    if (!canMakeCall) {
+      return NextResponse.json(
+        { error: 'Daily API limit exceeded for Google Places search' },
+        { status: 429 }
+      )
+    }
+
     // Use new Places API Text Search
     const searchUrl = 'https://places.googleapis.com/v1/places:searchText'
     
@@ -36,6 +46,9 @@ export async function POST(request: NextRequest) {
       // Only request basic fields for autocomplete-style search
       fieldMask: 'places.id,places.displayName,places.formattedAddress,places.location,places.types'
     }
+
+    // Track the API call
+    await trackGoogleMapsCall('places-text-search')
 
     const response = await fetch(searchUrl, {
       method: 'POST',
@@ -107,6 +120,18 @@ export async function GET(request: NextRequest) {
     if (!apiKey) {
       return NextResponse.json({ error: 'Google Maps API key not configured' }, { status: 500 })
     }
+
+    // Check API usage limits before making the call
+    const canMakeCall = await checkGoogleMapsLimit('places-nearby-search', session.user.id)
+    if (!canMakeCall) {
+      return NextResponse.json(
+        { error: 'Daily API limit exceeded for Google Places nearby search' },
+        { status: 429 }
+      )
+    }
+
+    // Track the API call
+    await trackGoogleMapsCall('places-nearby-search', session.user.id)
 
     // Build nearby search URL
     let searchUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location}&radius=${radius}&key=${apiKey}`
