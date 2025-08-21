@@ -14,7 +14,7 @@ async function fixDayIndexes() {
       include: {
         days: {
           orderBy: {
-            date: 'asc'
+            dayIndex: 'asc'
           }
         }
       }
