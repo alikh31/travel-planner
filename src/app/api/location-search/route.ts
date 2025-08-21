@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCached, setCached, generateCacheKey } from '@/lib/cache-manager'
+import { trackGoogleMapsCall, checkGoogleMapsLimit } from '@/lib/api-usage-tracker'
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,6 +23,18 @@ export async function POST(request: NextRequest) {
     if (!apiKey) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
     }
+
+    // Check API usage limits before making the call
+    const canMakeCall = await checkGoogleMapsLimit('location-search')
+    if (!canMakeCall) {
+      return NextResponse.json(
+        { error: 'Daily API limit exceeded for Google Places search' },
+        { status: 429 }
+      )
+    }
+
+    // Track the API call
+    await trackGoogleMapsCall('location-search')
 
     // Use legacy Places API for now as it's more reliable for text search
     const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query.trim())}&key=${apiKey}`

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedBinary, setCachedBinary, generateCacheKey, CACHE_TTLS } from '@/lib/cache-manager'
+import { trackGoogleMapsCall, checkGoogleMapsLimit } from '@/lib/api-usage-tracker'
 
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ''
 const NEW_PLACES_API_BASE = 'https://places.googleapis.com/v1'
@@ -28,6 +29,18 @@ export async function GET(request: NextRequest) {
         },
       })
     }
+    
+    // Check API usage limits before making the call
+    const canMakeCall = await checkGoogleMapsLimit('places-photo')
+    if (!canMakeCall) {
+      return NextResponse.json(
+        { error: 'Daily API limit exceeded for Google Places photos' },
+        { status: 429 }
+      )
+    }
+    
+    // Track the API call
+    await trackGoogleMapsCall('places-photo')
     
     let imageUrl: string
     

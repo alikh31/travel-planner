@@ -265,6 +265,8 @@ export default function ApiUsagePage() {
                       <th className="text-right py-2">Text Search</th>
                       <th className="text-right py-2">Nearby Search</th>
                       <th className="text-right py-2">Place Details</th>
+                      <th className="text-right py-2">Photos</th>
+                      <th className="text-right py-2">Location Search</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -275,6 +277,8 @@ export default function ApiUsagePage() {
                         <td className="text-right py-2">{day.endpoints['places-text-search'] || 0}</td>
                         <td className="text-right py-2">{day.endpoints['places-nearby-search'] || 0}</td>
                         <td className="text-right py-2">{day.endpoints['places-details'] || 0}</td>
+                        <td className="text-right py-2">{day.endpoints['places-photo'] || 0}</td>
+                        <td className="text-right py-2">{day.endpoints['location-search'] || 0}</td>
                       </tr>
                     ))}
                   </tbody>
