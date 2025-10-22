@@ -91,40 +91,49 @@ export default function AddAccommodationModal({
 
   // Set default values when modal opens or populate with editing data
   useEffect(() => {
-    if (isOpen) {
-      if (editingAccommodation) {
-        // Populate form with editing accommodation data
-        setNewAccommodation(prev => ({
-          ...prev,
-          name: editingAccommodation.name,
-          type: editingAccommodation.type as any,
-          location: editingAccommodation.location,
-          locationPlaceId: '', // We don't store these in the saved accommodation
-          locationLat: null,
-          locationLng: null,
-          photoUrl: editingAccommodation.photoUrl || '',
-          checkIn: editingAccommodation.checkIn,
-          nights: editingAccommodation.nights,
-          guests: editingAccommodation.guests,
-          amenities: editingAccommodation.amenities || [],
-          notes: editingAccommodation.notes || ''
-        }))
-      } else if (itinerary) {
-        // Set defaults for new accommodation
-        const defaultCheckIn = findFirstDayWithoutAccommodation()
-        const defaultGuests = itinerary.members?.length || 1
-        
-        // Only set defaults if current values are empty/default
-        if (!newAccommodation.checkIn || newAccommodation.guests === 1) {
-          setNewAccommodation(prev => ({
-            ...prev,
-            checkIn: defaultCheckIn,
-            guests: defaultGuests
-          }))
-        }
-      }
+    if (!isOpen) return
+
+    if (editingAccommodation) {
+      // Populate form with editing accommodation data
+      setNewAccommodation(prev => ({
+        ...prev,
+        name: editingAccommodation.name,
+        type: editingAccommodation.type as any,
+        location: editingAccommodation.location,
+        locationPlaceId: '', // We don't store these in the saved accommodation
+        locationLat: null,
+        locationLng: null,
+        photoUrl: editingAccommodation.photoUrl || '',
+        checkIn: editingAccommodation.checkIn,
+        nights: editingAccommodation.nights,
+        guests: editingAccommodation.guests,
+        amenities: editingAccommodation.amenities || [],
+        notes: editingAccommodation.notes || ''
+      }))
+      return
     }
-  }, [isOpen, itinerary, editingAccommodation, findFirstDayWithoutAccommodation, newAccommodation.checkIn, newAccommodation.guests, setNewAccommodation])
+
+    if (itinerary) {
+      // Set defaults for new accommodation without overwriting user input
+      const defaultCheckIn = findFirstDayWithoutAccommodation()
+      const defaultGuests = itinerary.members?.length || 1
+
+      setNewAccommodation(prev => {
+        const nextCheckIn = prev.checkIn || defaultCheckIn
+        const nextGuests = prev.guests > 1 ? prev.guests : defaultGuests
+
+        if (nextCheckIn === prev.checkIn && nextGuests === prev.guests) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          checkIn: nextCheckIn,
+          guests: nextGuests
+        }
+      })
+    }
+  }, [isOpen, itinerary, editingAccommodation, findFirstDayWithoutAccommodation, setNewAccommodation])
 
   const fetchPlacePhoto = useCallback(async (placeId: string): Promise<string | null> => {
     if (!placeId) return null
